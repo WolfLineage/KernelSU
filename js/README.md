@@ -167,10 +167,10 @@ import { pm } from 'kernelsu';
 const packages = pm.listPackages("user");
 ```
 
-- tips: when `pm.listPackages` api is available, you can use ksu://icon/{packageName} to get app icon.
+- tips: when `pm.listPackages` api is available, you can use yusu://icon/{packageName} to get app icon.
 
 ``` javascript
-img.src = "ksu://icon/" + packageName;
+img.src = "yusu://icon/" + packageName;
 ```
 
 #### pm.getPackagesInfo

@@ -231,7 +231,7 @@ fun flashModule(
             val input = ksuApp.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open $uri")
             input.use { copyForInstall(it, file, expected) }
         } catch (e: IOException) {
-            Log.w("KernelSU", "module $uri not installed: ${e.message}")
+            Log.w("YuSU", "module $uri not installed: ${e.message}")
             if (e is DownloadVerificationException) {
                 // Corrupted or tampered after download: never keep it around for a retry.
                 uri.path?.let { RegistryDownloadStore.delete(storeRoot, File(it)) }
@@ -242,7 +242,7 @@ fun flashModule(
         }
         val cmd = "module install ${file.absolutePath}"
         val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
-        Log.i("KernelSU", "install module $uri result: $result")
+        Log.i("YuSU", "install module $uri result: $result")
         return FlashResult(result, result.isSuccess && moduleNeedsReboot(file))
     } finally {
         file.delete()
@@ -291,7 +291,7 @@ fun runModuleAction(
             .to(stdoutCallback, stderrCallback).exec()
     }
 
-    Log.i("KernelSU", "Module runAction result: $result")
+    Log.i("YuSU", "Module runAction result: $result")
 
     return result.isSuccess
 }
@@ -428,7 +428,7 @@ fun installBoot(
     }
 
     val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
-    Log.i("KernelSU", "install boot result: ${result.isSuccess}")
+    Log.i("YuSU", "install boot result: ${result.isSuccess}")
 
     bootFile?.delete()
     lkmFile?.delete()

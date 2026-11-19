@@ -19,7 +19,7 @@
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <application
-        android:name=".KernelSUApplication"
+        android:name=".YuSUApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:directBootAware="true"
@@ -29,12 +29,12 @@
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.KernelSU"
+        android:theme="@style/Theme.YuSU"
         android:zygotePreloadName="me.weishu.kernelsu.magica.AppZygotePreload">
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.KernelSU.Starting"
+            android:theme="@style/Theme.YuSU.Starting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -58,7 +58,7 @@
 
                 <data
                     android:host="action"
-                    android:scheme="ksu" />
+                    android:scheme="yusu" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -67,7 +67,7 @@
 
                 <data
                     android:host="webui"
-                    android:scheme="ksu" />
+                    android:scheme="yusu" />
             </intent-filter>
         </activity>
 
@@ -78,7 +78,7 @@
             android:documentLaunchMode="intoExisting"
             android:exported="false"
             android:taskAffinity="${applicationId}.webui"
-            android:theme="@style/Theme.KernelSU.WebUI" />
+            android:theme="@style/Theme.YuSU.WebUI" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -113,7 +113,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
             <intent-filter>
-                <action android:name="me.weishu.kernelsu.magica.LAUNCH" />
+                <action android:name="com.vorthas.yusu.magica.LAUNCH" />
             </intent-filter>
         </receiver>
     </application>

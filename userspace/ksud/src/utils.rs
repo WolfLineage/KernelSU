@@ -86,6 +86,68 @@ pub fn ensure_dir_exists<T: AsRef<Path>>(dir: T) -> Result<()> {
     }
 }
 
+/// YuSU fork: migrate the legacy `/data/adb/ksu` workspace to `/data/adb/yusu`.
+///
+/// Runs once at the very start of post-fs-data, before the kernel is told that
+/// post-fs-data completed (and therefore before it re-reads the allowlist from
+/// the new path). We rename the whole tree so root grants, module configs,
+/// backups and profiles are preserved. If the new directory already exists we
+/// leave everything untouched (fresh installs and already-migrated devices).
+pub fn migrate_legacy_workspace() {
+    let legacy = Path::new(defs::LEGACY_WORKING_DIR);
+    let new = Path::new(defs::WORKING_DIR);
+
+    if !legacy.is_dir() || new.exists() {
+        return;
+    }
+
+    // Rename preserves the SELinux xattrs of every entry, so no restorecon is
+    // needed for the moved tree itself.
+    match std::fs::rename(legacy, new) {
+        Ok(()) => {
+            let _ = restorecon::lsetfilecon(new, restorecon::KSU_CON);
+            // The whole tree moved, so the old rc file now lives at
+            // WORKING_DIR/.ksurc; rename it in place to match KSURC_PATH.
+            let old_rc = new.join(".ksurc");
+            let new_rc = Path::new(defs::KSURC_PATH);
+            if old_rc.exists() && !new_rc.exists() {
+                let _ = std::fs::rename(&old_rc, new_rc);
+            }
+            log::info!("migrated legacy workspace {} -> {}", legacy.display(), new.display());
+        }
+        Err(e) => {
+            // A cross-filesystem rename would fail; fall back to a recursive
+            // copy so upgrades never lose their root grants.
+            log::warn!("rename legacy workspace failed ({e}), falling back to copy");
+            if copy_dir_recursive(legacy, new).is_ok() {
+                let _ = std::fs::remove_dir_all(legacy);
+                log::info!("copied legacy workspace to {}", new.display());
+            } else {
+                log::error!("failed to migrate legacy workspace; keeping old directory");
+            }
+        }
+    }
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        let ft = entry.file_type()?;
+        if ft.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else if ft.is_file() {
+            std::fs::copy(&from, &to)?;
+        } else if ft.is_symlink() {
+            let target = std::fs::read_link(&from)?;
+            std::os::unix::fs::symlink(target, &to)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn ensure_binary<T: AsRef<Path>>(
     path: T,
     contents: &[u8],

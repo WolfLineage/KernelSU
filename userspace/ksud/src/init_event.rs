@@ -14,6 +14,10 @@ pub fn on_post_fs_data() -> Result<()> {
         return Ok(());
     }
 
+    // YuSU fork: move the legacy workspace before telling the kernel that
+    // post-fs-data is done, so it re-reads the allowlist from the new path.
+    utils::migrate_legacy_workspace();
+
     ksucalls::report_post_fs_data();
 
     utils::umask(0);

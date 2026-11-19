@@ -33,7 +33,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 
 private const val WEB_DOMAIN = "mui.kernelsu.org"
-private const val KSU_SCHEME = "ksu"
+private const val KSU_SCHEME = "yusu"
 private const val ICON_HOST = "icon"
 private const val INTERNAL_BLOB_DOWNLOAD_HOST = "blob-download.kernelsu.internal"
 

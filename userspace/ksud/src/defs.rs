@@ -11,7 +11,11 @@ mod android {
     pub const BOOTLOG_TIMEOUT: &str = "30s";
 
     pub const ADB_DIR: &str = "/data/adb/";
-    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
+    // YuSU fork: the working directory is renamed from ksu to yusu so that
+    // /data/adb no longer exposes the stock KernelSU directory name.
+    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "yusu/");
+    // Legacy directory kept only for one-shot migration on upgrade.
+    pub const LEGACY_WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
     pub const BINARY_DIR: &str = concatcp!(WORKING_DIR, "bin/");
     pub const LIBRARY_DIR: &str = concatcp!(WORKING_DIR, "lib/");
     pub const LOG_DIR: &str = concatcp!(WORKING_DIR, "log/");
@@ -21,7 +25,7 @@ mod android {
     pub const PROFILE_SELINUX_DIR: &str = concatcp!(PROFILE_DIR, "selinux/");
     pub const PROFILE_TEMPLATE_DIR: &str = concatcp!(PROFILE_DIR, "templates/");
 
-    pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".ksurc");
+    pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".yusurc");
     // YuSU fork: the installed daemon is named yusud instead of ksud so that
     // /data/adb no longer carries the stock KernelSU binary name.
     pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "yusud");
@@ -37,9 +41,9 @@ mod android {
 
     // Preferred first: /metadata/vold (root:root 0700) hides best and does not
     // bump /metadata's nlink; else /metadata/watchdog (like Magisk); else /metadata.
-    pub const PREINIT_DIR_VOLD: &str = "/metadata/vold/ksu/";
-    pub const PREINIT_DIR_WATCHDOG: &str = "/metadata/watchdog/ksu/";
-    pub const PREINIT_DIR_DEFAULT: &str = "/metadata/ksu/";
+    pub const PREINIT_DIR_VOLD: &str = "/metadata/vold/yusu/";
+    pub const PREINIT_DIR_WATCHDOG: &str = "/metadata/watchdog/yusu/";
+    pub const PREINIT_DIR_DEFAULT: &str = "/metadata/yusu/";
     pub const METADATA_FILE_CON: &str = "u:object_r:metadata_file:s0";
     pub const VOLD_METADATA_FILE_CON: &str = "u:object_r:vold_metadata_file:s0";
     pub const MODULES_RC_FILE: &str = "modules.rc";
@@ -59,7 +63,7 @@ mod android {
     pub const MODULE_PREINIT_DIR: &str = "preinit";
     pub const PREINIT_CONF: &str = "preinit.conf";
     // Written by installer.sh when customize.sh requests a hot install
-    pub const HOT_INSTALL_MARKER: &str = ".ksu_hot_install";
+    pub const HOT_INSTALL_MARKER: &str = ".yusu_hot_install";
 
     // Module config system
     pub const MODULE_CONFIG_DIR: &str = concatcp!(WORKING_DIR, "module_configs/");
@@ -72,6 +76,9 @@ mod android {
     pub const METAMODULE_METAUNINSTALL_SCRIPT: &str = "metauninstall.sh";
 
     pub const KSU_BACKUP_DIR: &str = WORKING_DIR;
+    // Keep the historical backup-file prefix so that backups moved in with the
+    // legacy workspace remain discoverable. These names live inside WORKING_DIR
+    // (not at the /data/adb top level), so they are not a filesystem signature.
     pub const KSU_BACKUP_FILE_PREFIX: &str = "ksu_backup_";
     pub const BACKUP_FILENAME: &str = "stock_image.sha1";
     pub const KSU_TEMP_BACKUP_DIR_NAME: &str = "boot_backup";
