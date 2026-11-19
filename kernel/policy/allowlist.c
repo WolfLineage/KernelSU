@@ -69,7 +69,11 @@ struct perm_data {
 static DEFINE_HASHTABLE(allow_list, ALLOW_LIST_BITS);
 static u16 allow_list_count = 0;
 
-#define KERNEL_SU_ALLOWLIST "/data/adb/ksu/.allowlist"
+/* YuSU fork: primary allowlist path; legacy path kept as a read fallback so
+ * late-loaded devices (where the kernel reads before ksud can migrate) and
+ * not-yet-migrated upgrades keep their root grants. */
+#define KERNEL_SU_ALLOWLIST "/data/adb/yusu/.allowlist"
+#define KERNEL_SU_ALLOWLIST_LEGACY "/data/adb/ksu/.allowlist"
 
 void ksu_persistent_allow_list(void);
 
@@ -510,11 +514,16 @@ void ksu_load_allow_list()
     u32 version;
     size_t app_profile_size;
 
-    // load allowlist now!
+    // load allowlist now! Prefer the YuSU path, fall back to the legacy path
+    // for late-loaded / not-yet-migrated devices.
     fp = filp_open(KERNEL_SU_ALLOWLIST, O_RDONLY, 0);
     if (IS_ERR(fp)) {
-        pr_err("load_allow_list open file failed: %ld\n", PTR_ERR(fp));
-        return;
+        fp = filp_open(KERNEL_SU_ALLOWLIST_LEGACY, O_RDONLY, 0);
+        if (IS_ERR(fp)) {
+            pr_err("load_allow_list open file failed: %ld\n", PTR_ERR(fp));
+            return;
+        }
+        pr_info("load_allow_list: using legacy allowlist path\n");
     }
 
     // verify magic
