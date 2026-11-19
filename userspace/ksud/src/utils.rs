@@ -104,7 +104,7 @@ pub fn migrate_legacy_workspace() {
     // Rename preserves the SELinux xattrs of every entry, so no restorecon is
     // needed for the moved tree itself.
     match std::fs::rename(legacy, new) {
-        Ok(()) => {
+        std::result::Result::Ok(()) => {
             let _ = restorecon::lsetfilecon(new, restorecon::KSU_CON);
             // The whole tree moved, so the old rc file now lives at
             // WORKING_DIR/.ksurc; rename it in place to match KSURC_PATH.
@@ -113,7 +113,11 @@ pub fn migrate_legacy_workspace() {
             if old_rc.exists() && !new_rc.exists() {
                 let _ = std::fs::rename(&old_rc, new_rc);
             }
-            log::info!("migrated legacy workspace {} -> {}", legacy.display(), new.display());
+            log::info!(
+                "migrated legacy workspace {} -> {}",
+                legacy.display(),
+                new.display()
+            );
         }
         Err(e) => {
             // A cross-filesystem rename would fail; fall back to a recursive
@@ -129,7 +133,7 @@ pub fn migrate_legacy_workspace() {
     }
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::result::Result<(), std::io::Error> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
@@ -145,7 +149,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
             std::os::unix::fs::symlink(target, &to)?;
         }
     }
-    Ok(())
+    std::result::Result::Ok(())
 }
 
 pub fn ensure_binary<T: AsRef<Path>>(
