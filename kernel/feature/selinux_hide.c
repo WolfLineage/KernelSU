@@ -33,8 +33,24 @@
 #include "objsec.h"
 #include "hook/patch_memory.h"
 #include "ksu.h"
+#include "policy/allowlist.h"
 #include "policy/feature.h"
 #include "hook/lsm_hook.h"
+
+/*
+ * Timing-hardening contract (YuSU fork):
+ *
+ * Every selinuxfs / attr hook below gates on the exact same UID boundary as
+ * the rest of the kernel (FIRST_APPLICATION_UID). Keep all of these checks
+ * expressed through ksu_selinux_hide_applies(): a single, inlined predicate
+ * with a stable `likely()` hint. Diverging constants or branch shapes between
+ * hooks are observable as a timing side channel when a detector compares
+ * `/sys/fs/selinux/{context,access,status}` and `attr/current` write latency.
+ */
+static __always_inline bool ksu_selinux_hide_applies(void)
+{
+    return likely(current_uid().val >= FIRST_APPLICATION_UID);
+}
 
 static DEFINE_MUTEX(selinux_hide_mutex);
 static bool ksu_selinux_hide_enabled __read_mostly = false;
@@ -104,7 +120,7 @@ static write_op_fn orig_context_write, orig_access_write;
 static ssize_t my_write_context(struct file *file, char *buf, size_t size)
 {
     // apply to all app uids
-    if (likely(current_uid().val < 10000)) {
+    if (!ksu_selinux_hide_applies()) {
         return orig_context_write(file, buf, size);
     }
     char *canon = NULL;
@@ -142,7 +158,7 @@ out:
 static ssize_t my_write_access(struct file *file, char *buf, size_t size)
 {
     // apply to all app uids
-    if (likely(current_uid().val < 10000)) {
+    if (!ksu_selinux_hide_applies()) {
         return orig_access_write(file, buf, size);
     }
     char *scon = NULL, *tcon = NULL;
@@ -240,7 +256,7 @@ static u32 ptrace_parent_sid(void)
 typedef int (*setprocattr_fn)(const char *name, void *value, size_t size);
 static int __nocfi my_setprocattr(const char *name, void *value, size_t size)
 {
-    if (likely(current_uid().val < 10000)) {
+    if (!ksu_selinux_hide_applies()) {
         goto call_orig;
     }
 
@@ -345,7 +361,7 @@ static int __nocfi my_inode_setxattr(struct dentry *dentry, const char *name, co
     u32 sid = current_sid(), newsid, backup_sid;
     int rc, backup_rc;
 
-    if (likely(current_uid().val < 10000) || strcmp(name, XATTR_NAME_SELINUX))
+    if (!ksu_selinux_hide_applies() || strcmp(name, XATTR_NAME_SELINUX))
         goto call_orig;
 
     // Keep native force parsing for callers with CAP_MAC_ADMIN
@@ -496,7 +512,7 @@ typedef int (*sel_open_handle_status_fn)(struct inode *inode, struct file *filp)
 static sel_open_handle_status_fn orig_sel_open_handle_status, *sel_open_handle_status_slot;
 static int my_sel_open_handle_status(struct inode *inode, struct file *filp)
 {
-    if (likely(current_uid().val >= 10000 && ksu_selinux_hide_enabled)) {
+    if (ksu_selinux_hide_applies() && ksu_selinux_hide_enabled) {
         void *data = fake_status;
         if (data) {
             filp->private_data = data;
