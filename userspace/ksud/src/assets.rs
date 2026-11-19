@@ -4,7 +4,7 @@ use rust_embed::RustEmbed;
 #[cfg(target_os = "android")]
 mod android {
     use crate::assets::Asset;
-    use crate::defs::BINARY_DIR;
+    use crate::defs::{BINARY_DIR, DAEMON_PATH};
     use crate::utils::ensure_binary;
     use const_format::concatcp;
 
@@ -23,10 +23,10 @@ mod android {
             ensure_binary(format!("{BINARY_DIR}{file}"), &asset.data, ignore_if_exist)?;
         }
 
-        // Create resetprop -> ksud symlink (resetprop is now built into ksud)
+        // Create resetprop -> yusud symlink (resetprop is now built into the daemon)
         let resetprop_link = RESETPROP_PATH;
         let _ = std::fs::remove_file(resetprop_link);
-        std::os::unix::fs::symlink("/data/adb/ksud", resetprop_link)?;
+        std::os::unix::fs::symlink(DAEMON_PATH, resetprop_link)?;
 
         Ok(())
     }

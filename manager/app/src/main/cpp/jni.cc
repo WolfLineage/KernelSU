@@ -405,7 +405,7 @@ int fork_dont_care_and_exec_ksud(const char *path, const char *pkg) {
         _exit(0);
     }
 
-    execl(path, "ksud", "late-load", "--magica", "5555", "--package-name", pkg, nullptr);
+    execl(path, "yusud", "late-load", "--magica", "5555", "--package-name", pkg, nullptr);
     PLOGE("exec magica");
     _exit(1);
 }

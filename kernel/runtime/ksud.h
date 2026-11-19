@@ -3,7 +3,8 @@
 
 #include <asm/syscall.h>
 
-#define KSUD_PATH "/data/adb/ksud"
+/* YuSU fork: daemon binary renamed from ksud to yusud to avoid signature matching. */
+#define KSUD_PATH "/data/adb/yusud"
 
 void ksu_ksud_init();
 void ksu_ksud_exit();

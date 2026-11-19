@@ -75,7 +75,7 @@ print_title() {
 }
 
 check_sepolicy() {
-    /data/adb/ksud sepolicy check "$1"
+    /data/adb/yusud sepolicy check "$1"
     return $?
 }
 
@@ -269,8 +269,8 @@ check_managed_features() {
     feature=$(echo "$feature" | xargs)
     [ -z "$feature" ] && continue
 
-    # Check feature status using ksud
-    local status=$(/data/adb/ksud feature check "$feature" 2>/dev/null)
+    # Check feature status using the YuSU daemon
+    local status=$(/data/adb/yusud feature check "$feature" 2>/dev/null)
 
     case "$status" in
       "unsupported")

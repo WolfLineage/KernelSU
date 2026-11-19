@@ -22,10 +22,12 @@ mod android {
     pub const PROFILE_TEMPLATE_DIR: &str = concatcp!(PROFILE_DIR, "templates/");
 
     pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".ksurc");
-    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "ksud");
+    // YuSU fork: the installed daemon is named yusud instead of ksud so that
+    // /data/adb no longer carries the stock KernelSU binary name.
+    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "yusud");
     pub const LIBADBROOT_PATH: &str = concatcp!(LIBRARY_DIR, "libadbroot.so");
 
-    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "ksud");
+    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "yusud");
 
     pub const MODULE_DIR: &str = concatcp!(ADB_DIR, "modules/");
     pub const MODULE_UPDATE_DIR: &str = concatcp!(ADB_DIR, "modules_update/");
