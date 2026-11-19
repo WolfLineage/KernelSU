@@ -647,10 +647,7 @@ pub fn run() -> Result<()> {
                 }
             }
         }
-        Commands::Install {
-            adbh,
-            data_path,
-        } => utils::install(adbh, data_path),
+        Commands::Install { adbh, data_path } => utils::install(adbh, data_path),
         Commands::Unload => crate::unload::unload(),
         Commands::Uninstall { package_name } => utils::uninstall(&package_name),
         Commands::Sepolicy { command } => match command {
