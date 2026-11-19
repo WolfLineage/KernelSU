@@ -16,13 +16,11 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Rule
 import androidx.compose.material.icons.filled.Adb
 import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DeveloperMode
 import androidx.compose.material.icons.filled.DisplaySettings
 import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.RestartAlt
@@ -32,17 +30,13 @@ import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -56,8 +50,6 @@ import com.vorthas.yusu.ui.component.material.SegmentedColumn
 import com.vorthas.yusu.ui.component.material.SegmentedDropdownItem
 import com.vorthas.yusu.ui.component.material.SegmentedListItem
 import com.vorthas.yusu.ui.component.material.SegmentedSwitchItem
-import com.vorthas.yusu.ui.component.material.SendLogBottomSheet
-import com.vorthas.yusu.ui.component.material.SnackBarHost
 import com.vorthas.yusu.ui.component.material.expressiveTopAppBarColors
 import com.vorthas.yusu.ui.component.uninstalldialog.UninstallDialog
 
@@ -72,9 +64,7 @@ fun SettingPagerMaterial(
     bottomInnerPadding: Dp,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
-    val snackBarHost = remember { SnackbarHostState() }
     val showUninstallDialog = rememberSaveable { mutableStateOf(false) }
-    var showBottomSheet by remember { mutableStateOf(false) }
 
     UninstallDialog(
         show = showUninstallDialog.value,
@@ -85,7 +75,6 @@ fun SettingPagerMaterial(
         topBar = {
             TopBar(scrollBehavior = scrollBehavior)
         },
-        snackbarHost = { SnackBarHost(hostState = snackBarHost, modifier = Modifier.padding(bottom = bottomInnerPadding)) },
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     ) { paddingValues ->
         Column(
@@ -343,44 +332,6 @@ fun SettingPagerMaterial(
                 )
             }
 
-            SegmentedColumn(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 13.dp),
-                content = listOf(
-                    {
-                        SegmentedListItem(
-                            onClick = { showBottomSheet = true },
-                            headlineContent = { Text(stringResource(id = R.string.send_log)) },
-                            leadingContent = {
-                                Icon(
-                                    Icons.Filled.BugReport,
-                                    stringResource(id = R.string.send_log)
-                                )
-                            },
-                        )
-                    },
-                    {
-                        SegmentedListItem(
-                            onClick = actions.onOpenAbout,
-                            headlineContent = { Text(stringResource(id = R.string.about)) },
-                            leadingContent = {
-                                Icon(
-                                    Icons.Filled.Info,
-                                    stringResource(id = R.string.about)
-                                )
-                            },
-                        )
-                    }
-                )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (showBottomSheet) {
-                SendLogBottomSheet(
-                    onDismiss = { showBottomSheet = false },
-                    snackbarHostState = snackBarHost,
-                )
-            }
             Spacer(modifier = Modifier.height(bottomInnerPadding))
         }
     }

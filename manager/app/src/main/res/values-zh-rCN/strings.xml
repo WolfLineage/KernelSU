@@ -222,6 +222,10 @@
     <string name="group_contains_apps">包含 %d 个应用</string>
     <string name="settings_theme">主题设置</string>
     <string name="settings_theme_summary">自定义更多主题选项</string>
+    <string name="settings_theme_wallpaper">自定义壁纸</string>
+    <string name="settings_theme_wallpaper_summary">使用图片作为应用背景，自动适配卡片颜色</string>
+    <string name="settings_theme_wallpaper_current">壁纸已启用，点击更换</string>
+    <string name="settings_theme_wallpaper_remove">移除壁纸</string>
     <string name="settings_theme_mode_system">跟随系统</string>
     <string name="settings_theme_mode_light">浅色</string>
     <string name="settings_theme_mode_dark">深色</string>

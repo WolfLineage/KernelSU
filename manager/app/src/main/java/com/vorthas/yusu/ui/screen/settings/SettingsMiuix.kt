@@ -1,4 +1,5 @@
 package com.vorthas.yusu.ui.screen.settings
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -18,13 +19,11 @@ import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.automirrored.rounded.Rule
 import androidx.compose.material.icons.rounded.Adb
 import androidx.compose.material.icons.rounded.AdminPanelSettings
-import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DeveloperMode
 import androidx.compose.material.icons.rounded.DisplaySettings
 import androidx.compose.material.icons.rounded.FlashOn
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LayersClear
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -44,8 +43,6 @@ import androidx.compose.ui.unit.dp
 import com.vorthas.yusu.R
 import com.vorthas.yusu.ui.UiMode
 import com.vorthas.yusu.ui.component.KsuIsValid
-import com.vorthas.yusu.ui.component.dialog.rememberLoadingDialog
-import com.vorthas.yusu.ui.component.miuix.SendLogDialog
 import com.vorthas.yusu.ui.component.uninstalldialog.UninstallDialog
 import com.vorthas.yusu.ui.theme.LocalEnableBlur
 import com.vorthas.yusu.ui.util.BlurredBar
@@ -78,11 +75,11 @@ fun SettingPagerMiuix(
     val backdrop = rememberBlurBackdrop(enableBlur)
     val blurActive = backdrop != null
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
-    val loadingDialog = rememberLoadingDialog()
     val showUninstallDialog = rememberSaveable { mutableStateOf(false) }
-    val showSendLogDialog = rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
+
+        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 TopAppBar(
@@ -442,42 +439,6 @@ fun SettingPagerMiuix(
                         }
                     }
 
-                    Card(
-                        modifier = Modifier
-                            .padding(vertical = 12.dp)
-                            .fillMaxWidth(),
-                    ) {
-                        ArrowPreference(
-                            title = stringResource(id = R.string.send_log),
-                            startAction = {
-                                Icon(
-                                    Icons.Rounded.BugReport,
-                                    modifier = Modifier.padding(end = 6.dp),
-                                    contentDescription = stringResource(id = R.string.send_log),
-                                    tint = colorScheme.onBackground
-                                )
-                            },
-                            onClick = { showSendLogDialog.value = true },
-                        )
-                        SendLogDialog(
-                            show = showSendLogDialog.value,
-                            onDismissRequest = { showSendLogDialog.value = false },
-                            loadingDialog = loadingDialog
-                        )
-                        val about = stringResource(id = R.string.about)
-                        ArrowPreference(
-                            title = about,
-                            startAction = {
-                                Icon(
-                                    Icons.Rounded.Info,
-                                    modifier = Modifier.padding(end = 6.dp),
-                                    contentDescription = about,
-                                    tint = colorScheme.onBackground
-                                )
-                            },
-                            onClick = actions.onOpenAbout,
-                        )
-                    }
                     Spacer(Modifier.height(bottomInnerPadding))
                 }
             }

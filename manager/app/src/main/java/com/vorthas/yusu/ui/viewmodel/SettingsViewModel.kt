@@ -49,6 +49,7 @@ class SettingsViewModel(
             val enableWebDebugging = repo.enableWebDebugging
             val colorStyle = repo.colorStyle
             val colorSpec = repo.colorSpec
+            val wallpaperUri = repo.wallpaperUri
             val isLkmMode = repo.isLkmMode()
 
             // Async loading for natives/features
@@ -112,6 +113,7 @@ class SettingsViewModel(
                     enableWebDebugging = enableWebDebugging,
                     colorStyle = colorStyle,
                     colorSpec = colorSpec,
+                    wallpaperUri = wallpaperUri,
                     suCompatStatus = suCompatStatus,
                     suCompatMode = suCompatMode,
                     isSuEnabled = isSuEnabled,
@@ -138,6 +140,11 @@ class SettingsViewModel(
     fun setCheckUpdate(enabled: Boolean) {
         repo.checkUpdate = enabled
         _uiState.update { it.copy(checkUpdate = enabled) }
+    }
+
+    fun setWallpaperUri(uri: String) {
+        repo.wallpaperUri = uri
+        _uiState.update { it.copy(wallpaperUri = uri) }
     }
 
     fun setUiMode(mode: String) {

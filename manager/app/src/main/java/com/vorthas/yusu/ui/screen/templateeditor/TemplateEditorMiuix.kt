@@ -1,4 +1,5 @@
 package com.vorthas.yusu.ui.screen.templateeditor
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -68,6 +69,8 @@ fun TemplateEditorScreenMiuix(
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
 
     Scaffold(
+
+        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 title = if (state.isCreation) {

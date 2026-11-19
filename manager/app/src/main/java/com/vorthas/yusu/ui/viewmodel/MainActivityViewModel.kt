@@ -53,6 +53,7 @@ class MainActivityViewModel(
             enableSwipeDismiss = settingRepo.enableSwipeDismiss,
             pagerInterceptionMode = settingRepo.pagerInterceptionMode,
             moduleDescriptionMaxLines = settingRepo.moduleDescriptionMaxLines,
+            wallpaperUri = settingRepo.wallpaperUri,
             uiMode = UiMode.fromValue(settingRepo.uiMode),
         )
     }
@@ -63,6 +64,7 @@ class MainActivityViewModel(
             "key_color",
             "color_style",
             "color_spec",
+            "wallpaper_uri",
             "page_scale",
             "module_description_max_lines",
             "enable_blur",

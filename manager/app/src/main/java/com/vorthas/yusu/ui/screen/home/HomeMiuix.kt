@@ -1,4 +1,5 @@
 package com.vorthas.yusu.ui.screen.home
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -29,14 +30,12 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.runtime.Composable
@@ -100,6 +99,7 @@ fun HomePagerMiuix(
     val blurActive = backdrop != null
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
     Scaffold(
+        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 scrollBehavior = scrollBehavior,
@@ -169,10 +169,6 @@ fun HomePagerMiuix(
                         )
                         InfoCard(
                             systemInfo = state.systemInfo,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SupportLinks(
-                            onOpenUrl = actions.onOpenUrl,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(
@@ -434,43 +430,6 @@ private fun StatusCard(
 }
 
 @Composable
-private fun SupportLinks(
-    onOpenUrl: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val learnMoreUrl = stringResource(R.string.home_learn_yusu_url)
-
-    Card(modifier = modifier) {
-        ArrowPreference(
-            title = stringResource(R.string.home_support_title),
-            summary = stringResource(R.string.home_support_content),
-            startAction = {
-                Icon(
-                    imageVector = Icons.Filled.VolunteerActivism,
-                    contentDescription = stringResource(R.string.home_support_title),
-                    modifier = Modifier.padding(end = 6.dp),
-                    tint = colorScheme.onBackground,
-                )
-            },
-            onClick = { onOpenUrl("https://patreon.com/weishu") },
-        )
-        ArrowPreference(
-            title = stringResource(R.string.home_learn_yusu),
-            summary = stringResource(R.string.home_click_to_learn_yusu),
-            startAction = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                    contentDescription = stringResource(R.string.home_learn_yusu),
-                    modifier = Modifier.padding(end = 6.dp),
-                    tint = colorScheme.onBackground,
-                )
-            },
-            onClick = { onOpenUrl(learnMoreUrl) },
-        )
-    }
-}
-
-@Composable
 private fun InfoCard(
     systemInfo: SystemInfo,
     modifier: Modifier = Modifier,
@@ -647,10 +606,6 @@ private fun HomeScreenPreviewContent(
             )
             InfoCard(
                 systemInfo = previewSystemInfo.copy(selinuxStatus = selinuxStatus),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            SupportLinks(
-                onOpenUrl = {},
                 modifier = Modifier.fillMaxWidth(),
             )
         }

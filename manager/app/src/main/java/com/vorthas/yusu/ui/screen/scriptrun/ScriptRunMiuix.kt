@@ -1,4 +1,5 @@
 package com.vorthas.yusu.ui.screen.scriptrun
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -87,6 +88,8 @@ internal fun ScriptRunScreenMiuix(
     val barColor = if (backdrop != null) Color.Transparent else colorScheme.surface
 
     Scaffold(
+
+        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 onBack = actions.onBack,

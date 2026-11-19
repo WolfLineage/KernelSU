@@ -60,7 +60,7 @@ fun SettingPager(
         onSetEnableWebDebugging = viewModel::setEnableWebDebugging,
         onSetAutoJailbreak = viewModel::setAutoJailbreak,
         onSetUseSoftReboot = viewModel::setUseSoftReboot,
-        onOpenAbout = { navigator.push(Route.About) },
+        onSetWallpaperUri = viewModel::setWallpaperUri,
     )
 
     when (LocalUiMode.current) {

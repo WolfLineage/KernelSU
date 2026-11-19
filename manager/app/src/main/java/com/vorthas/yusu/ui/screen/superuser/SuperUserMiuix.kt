@@ -1,4 +1,5 @@
 package com.vorthas.yusu.ui.screen.superuser
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -123,6 +124,8 @@ fun SuperUserPagerMiuix(
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
 
     Scaffold(
+
+        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 searchStatus.TopAppBarAnim(backgroundColor = barColor) {

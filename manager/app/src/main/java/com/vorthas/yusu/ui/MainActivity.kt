@@ -2,6 +2,8 @@ package com.vorthas.yusu.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.widget.Toast
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
@@ -35,12 +38,15 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -96,6 +102,9 @@ import com.vorthas.yusu.ui.theme.LocalEnableFloatingBottomBar
 import com.vorthas.yusu.ui.theme.LocalEnableFloatingBottomBarBlur
 import com.vorthas.yusu.ui.theme.LocalEnableNavigationBadge
 import com.vorthas.yusu.ui.theme.LocalModuleDescriptionMaxLines
+import com.vorthas.yusu.ui.theme.LocalWallpaperBitmap
+import com.vorthas.yusu.ui.theme.WallpaperBackdrop
+import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 import com.vorthas.yusu.ui.util.getSuperuserCount
 import com.vorthas.yusu.ui.util.install
 import com.vorthas.yusu.ui.util.rememberBlurBackdrop
@@ -170,6 +179,34 @@ class MainActivity : ComponentActivity() {
                 Density(systemDensity.density * uiState.pageScale, systemDensity.fontScale)
             }
 
+            val wallpaperUri = uiState.wallpaperUri
+            val wallpaper by produceState<ImageBitmap?>(null, wallpaperUri) {
+                value = withContext(Dispatchers.IO) {
+                    if (wallpaperUri.isBlank()) {
+                        null
+                    } else {
+                        runCatching {
+                            val imageUri = Uri.parse(wallpaperUri)
+                            // Read dimensions first, then downsample. Keeping a full-resolution
+                            // photo in memory is wasteful for a background layer.
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            context.contentResolver.openInputStream(imageUri)?.use {
+                                BitmapFactory.decodeStream(it, null, bounds)
+                            }
+                            val sample = maxOf(
+                                (bounds.outWidth + 1439) / 1440,
+                                (bounds.outHeight + 2559) / 2560,
+                                1,
+                            ).coerceAtLeast(1)
+                            val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                            context.contentResolver.openInputStream(imageUri)?.use {
+                                BitmapFactory.decodeStream(it, null, options)?.asImageBitmap()
+                            }
+                        }.getOrNull()
+                    }
+                }
+            }
+
             CompositionLocalProvider(
                 LocalUriHandler provides object : UriHandler {
                     override fun openUri(uri: String) {
@@ -188,10 +225,13 @@ class MainActivity : ComponentActivity() {
                 LocalEnableFloatingBottomBarBlur provides uiState.enableFloatingBottomBarBlur,
                 LocalEnableNavigationBadge provides uiState.enableNavigationBadge,
                 LocalModuleDescriptionMaxLines provides uiState.moduleDescriptionMaxLines,
+                LocalWallpaperBitmap provides wallpaper,
                 LocalUiMode provides uiMode,
             ) {
                 KernelSUTheme(appSettings = appSettings, uiMode = uiMode) {
-                    IntentDispatcher(intentChannel = intentChannel)
+                    Box(Modifier.fillMaxSize()) {
+                        WallpaperBackdrop()
+                        IntentDispatcher(intentChannel = intentChannel)
                     val swipeDismiss = if (uiState.enableSwipeDismiss) {
                         if (LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) {
                             NavSwipeDirection.RightToLeft
@@ -272,14 +312,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    when (uiMode) {
-                        UiMode.Material -> androidx.compose.material3.Scaffold(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer
-                        ) { navDisplay() }
+                        when (uiMode) {
+                            UiMode.Material -> androidx.compose.material3.Scaffold(
+                                containerColor = wallpaperContainerColor(MaterialTheme.colorScheme.surfaceContainer)
+                            ) { navDisplay() }
 
-                        UiMode.Miuix -> Scaffold { navDisplay() }
+                            UiMode.Miuix -> Scaffold(
+                                containerColor = wallpaperContainerColor(MiuixTheme.colorScheme.surface)
+                            ) { navDisplay() }
+                        }
+                        SideEffect { contentReady = true }
                     }
-                    SideEffect { contentReady = true }
                 }
             }
         }
@@ -445,7 +488,7 @@ fun MainScreen(
 
             when (uiMode) {
                 UiMode.Material -> androidx.compose.material3.Scaffold(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = wallpaperContainerColor(MaterialTheme.colorScheme.surfaceContainer)
                 ) {
                     Row {
                         SideRail(navigationBadge)
@@ -459,7 +502,9 @@ fun MainScreen(
                     }
                 }
 
-                UiMode.Miuix -> Scaffold { _ ->
+                UiMode.Miuix -> Scaffold(
+                    containerColor = wallpaperContainerColor(MiuixTheme.colorScheme.surface)
+                ) { _ ->
                     Row {
                         SideRail(navigationBadge)
                         Box(
@@ -489,12 +534,15 @@ fun MainScreen(
             when (uiMode) {
                 UiMode.Material -> androidx.compose.material3.Scaffold(
                     bottomBar = bottomBar,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = wallpaperContainerColor(MaterialTheme.colorScheme.surfaceContainer)
                 ) { innerPadding ->
                     pagerContent(innerPadding.calculateBottomPadding())
                 }
 
-                UiMode.Miuix -> Scaffold(bottomBar = bottomBar) { innerPadding ->
+                UiMode.Miuix -> Scaffold(
+                    bottomBar = bottomBar,
+                    containerColor = wallpaperContainerColor(MiuixTheme.colorScheme.surface)
+                ) { innerPadding ->
                     pagerContent(innerPadding.calculateBottomPadding())
                 }
             }
