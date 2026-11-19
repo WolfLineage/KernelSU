@@ -47,9 +47,9 @@ class SettingsViewModel(
             val pageScale = repo.pageScale
             val moduleDescriptionMaxLines = repo.moduleDescriptionMaxLines
             val enableWebDebugging = repo.enableWebDebugging
+            val usbDebuggingEnabled = repo.isUsbDebuggingEnabled()
             val colorStyle = repo.colorStyle
             val colorSpec = repo.colorSpec
-            val wallpaperUri = repo.wallpaperUri
             val isLkmMode = repo.isLkmMode()
 
             // Async loading for natives/features
@@ -111,9 +111,9 @@ class SettingsViewModel(
                     pageScale = pageScale,
                     moduleDescriptionMaxLines = moduleDescriptionMaxLines,
                     enableWebDebugging = enableWebDebugging,
+                    usbDebuggingEnabled = usbDebuggingEnabled,
                     colorStyle = colorStyle,
                     colorSpec = colorSpec,
-                    wallpaperUri = wallpaperUri,
                     suCompatStatus = suCompatStatus,
                     suCompatMode = suCompatMode,
                     isSuEnabled = isSuEnabled,
@@ -140,11 +140,6 @@ class SettingsViewModel(
     fun setCheckUpdate(enabled: Boolean) {
         repo.checkUpdate = enabled
         _uiState.update { it.copy(checkUpdate = enabled) }
-    }
-
-    fun setWallpaperUri(uri: String) {
-        repo.wallpaperUri = uri
-        _uiState.update { it.copy(wallpaperUri = uri) }
     }
 
     fun setUiMode(mode: String) {
@@ -274,6 +269,19 @@ class SettingsViewModel(
     fun setEnableWebDebugging(enabled: Boolean) {
         repo.enableWebDebugging = enabled
         _uiState.update { it.copy(enableWebDebugging = enabled) }
+    }
+
+    fun setUsbDebuggingEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = repo.setUsbDebuggingEnabled(enabled)
+            withContext(Dispatchers.Main) {
+                if (ok) {
+                    _uiState.update { it.copy(usbDebuggingEnabled = enabled) }
+                } else {
+                    Toast.makeText(ksuApp, R.string.settings_usb_debugging_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     fun setSuCompatMode(mode: Int) {

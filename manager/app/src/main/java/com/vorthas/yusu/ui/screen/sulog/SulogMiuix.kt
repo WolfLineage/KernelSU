@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.sulog
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
@@ -151,8 +150,6 @@ fun SulogScreenMiuix(
     )
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 searchStatus.TopAppBarAnim(backgroundColor = barColor) {

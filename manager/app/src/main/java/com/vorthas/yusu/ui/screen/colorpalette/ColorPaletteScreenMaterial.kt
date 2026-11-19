@@ -1,10 +1,7 @@
 package com.vorthas.yusu.ui.screen.colorpalette
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -54,10 +51,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DesignServices
 import androidx.compose.material.icons.rounded.Pin
-import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.Swipe
 import androidx.compose.material.icons.rounded.ViewCarousel
@@ -81,7 +76,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -96,7 +90,6 @@ import com.vorthas.yusu.ui.component.material.ExpressiveScaffold
 import com.vorthas.yusu.ui.component.material.ExpressiveToggleButton
 import com.vorthas.yusu.ui.component.material.SegmentedColumn
 import com.vorthas.yusu.ui.component.material.SegmentedDropdownItem
-import com.vorthas.yusu.ui.component.material.SegmentedListItem
 import com.vorthas.yusu.ui.component.material.SegmentedSwitchItem
 import com.vorthas.yusu.ui.component.material.TonalCard
 import com.vorthas.yusu.ui.component.material.TopBarBackButton
@@ -118,18 +111,6 @@ fun ColorPaletteScreenMaterial(
     val colorStyle = state.currentPaletteStyle
     val colorSpec = state.currentColorSpec
     val haptic = LocalHapticFeedback.current
-    val context = LocalContext.current
-    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            actions.onSetWallpaperUri(uri.toString())
-        }
-    }
 
     ExpressiveScaffold(
         topBar = {
@@ -164,42 +145,6 @@ fun ColorPaletteScreenMaterial(
                     isAmoled = isAmoled,
                     paletteStyle = colorStyle,
                     colorSpec = colorSpec,
-                )
-            }
-
-            item {
-                val wallpaperSet = uiState.wallpaperUri.isNotBlank()
-                SegmentedColumn(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    content = buildList<@Composable () -> Unit> {
-                        add {
-                            SegmentedListItem(
-                                onClick = { wallpaperPicker.launch("image/*") },
-                                headlineContent = { Text(stringResource(R.string.settings_theme_wallpaper)) },
-                                supportingContent = {
-                                    Text(
-                                        stringResource(
-                                            if (wallpaperSet) {
-                                                R.string.settings_theme_wallpaper_current
-                                            } else {
-                                                R.string.settings_theme_wallpaper_summary
-                                            }
-                                        )
-                                    )
-                                },
-                                leadingContent = { Icon(Icons.Rounded.Wallpaper, null) },
-                            )
-                        }
-                        if (wallpaperSet) {
-                            add {
-                                SegmentedListItem(
-                                    onClick = { actions.onSetWallpaperUri("") },
-                                    headlineContent = { Text(stringResource(R.string.settings_theme_wallpaper_remove)) },
-                                    leadingContent = { Icon(Icons.Rounded.Delete, null) },
-                                )
-                            }
-                        }
-                    }
                 )
             }
 

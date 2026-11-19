@@ -15,7 +15,6 @@ data class SettingsUiState(
     val keyColor: Int = 0,
     val colorStyle: String = PaletteStyle.TonalSpot.name,
     val colorSpec: String = ColorSpec.SpecVersion.SPEC_2025.name,
-    val wallpaperUri: String = "",
     val enablePredictiveBack: Boolean = false,
     val enableSwipeDismiss: Boolean = true,
     val pagerInterceptionMode: Int = 1,
@@ -26,6 +25,7 @@ data class SettingsUiState(
     val pageScale: Float = 1.0f,
     val moduleDescriptionMaxLines: Int = 4,
     val enableWebDebugging: Boolean = false,
+    val usbDebuggingEnabled: Boolean = false,
 
     // Su Compat
     val suCompatStatus: String = "",
@@ -80,7 +80,7 @@ data class SettingsScreenActions(
     val onSetShellSuAdbOnlyEnabled: (Boolean) -> Unit,
     val onSetDefaultUmountModules: (Boolean) -> Unit,
     val onSetEnableWebDebugging: (Boolean) -> Unit,
+    val onSetUsbDebuggingEnabled: (Boolean) -> Unit,
     val onSetAutoJailbreak: (Boolean) -> Unit,
     val onSetUseSoftReboot: (Boolean) -> Unit,
-    val onSetWallpaperUri: (String) -> Unit,
 )

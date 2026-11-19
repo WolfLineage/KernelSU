@@ -172,6 +172,9 @@
     <string name="external_link_open_failed">无法打开链接</string>
     <string name="enable_web_debugging">WebView 调试</string>
     <string name="enable_web_debugging_summary">可用于调试 WebUI，请仅在需要时启用</string>
+    <string name="settings_usb_debugging">USB 调试</string>
+    <string name="settings_usb_debugging_summary">快捷开启或关闭系统 USB 调试，默认关闭</string>
+    <string name="settings_usb_debugging_failed">切换 USB 调试状态失败</string>
     <string name="direct_install">直接安装（推荐）</string>
     <string name="select_file">选择文件并修补</string>
     <string name="download_file">下载文件并修补</string>
@@ -222,10 +225,6 @@
     <string name="group_contains_apps">包含 %d 个应用</string>
     <string name="settings_theme">主题设置</string>
     <string name="settings_theme_summary">自定义更多主题选项</string>
-    <string name="settings_theme_wallpaper">自定义壁纸</string>
-    <string name="settings_theme_wallpaper_summary">使用图片作为应用背景，自动适配卡片颜色</string>
-    <string name="settings_theme_wallpaper_current">壁纸已启用，点击更换</string>
-    <string name="settings_theme_wallpaper_remove">移除壁纸</string>
     <string name="settings_theme_mode_system">跟随系统</string>
     <string name="settings_theme_mode_light">浅色</string>
     <string name="settings_theme_mode_dark">深色</string>

@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.flash
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -85,8 +84,6 @@ fun FlashScreenMiuix(
     }
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 state.flashingStatus,

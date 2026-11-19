@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.settings
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +79,6 @@ fun SettingPagerMiuix(
 
     Scaffold(
 
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 TopAppBar(
@@ -393,6 +392,20 @@ fun SettingPagerMiuix(
                                 },
                                 checked = uiState.enableWebDebugging,
                                 onCheckedChange = actions.onSetEnableWebDebugging
+                            )
+                            SwitchPreference(
+                                title = stringResource(id = R.string.settings_usb_debugging),
+                                summary = stringResource(id = R.string.settings_usb_debugging_summary),
+                                startAction = {
+                                    Icon(
+                                        Icons.Rounded.Usb,
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        contentDescription = stringResource(id = R.string.settings_usb_debugging),
+                                        tint = colorScheme.onBackground
+                                    )
+                                },
+                                checked = uiState.usbDebuggingEnabled,
+                                onCheckedChange = actions.onSetUsbDebuggingEnabled
                             )
                             SwitchPreference(
                                 title = stringResource(id = R.string.settings_auto_jailbreak),

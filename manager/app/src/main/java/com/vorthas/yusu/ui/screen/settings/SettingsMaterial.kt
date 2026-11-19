@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -299,6 +300,15 @@ fun SettingPagerMaterial(
                                 summary = stringResource(id = R.string.enable_web_debugging_summary),
                                 checked = uiState.enableWebDebugging,
                                 onCheckedChange = actions.onSetEnableWebDebugging
+                            )
+                        },
+                        {
+                            SegmentedSwitchItem(
+                                icon = Icons.Filled.Usb,
+                                title = stringResource(id = R.string.settings_usb_debugging),
+                                summary = stringResource(id = R.string.settings_usb_debugging_summary),
+                                checked = uiState.usbDebuggingEnabled,
+                                onCheckedChange = actions.onSetUsbDebuggingEnabled
                             )
                         },
                         {

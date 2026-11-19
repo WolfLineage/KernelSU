@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.core.content.edit
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamiccolor.ColorSpec
+import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.ShellUtils
 import com.vorthas.yusu.Natives
 import com.vorthas.yusu.ksuApp
@@ -26,6 +27,17 @@ private const val KEY_USE_SOFT_REBOOT = "soft_reboot"
 fun isSoftRebootPreferred(): Boolean =
     Natives.isLateLoadMode || ksuApp.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         .getBoolean(KEY_USE_SOFT_REBOOT, false)
+
+/**
+ * Applies the persisted USB debugging choice during boot. The preference
+ * defaults to false, so a device that has never used the switch boots with
+ * USB debugging turned off.
+ */
+fun applyUsbDebuggingPreference() {
+    val repo = SettingsRepositoryImpl()
+    val value = if (repo.isUsbDebuggingEnabled()) 1 else 0
+    runCatching { Shell.cmd("settings put global adb_enabled $value").exec() }
+}
 
 class SettingsRepositoryImpl : SettingsRepository {
 
@@ -70,10 +82,6 @@ class SettingsRepositoryImpl : SettingsRepository {
         get() = prefs.getString("color_spec", ColorSpec.SpecVersion.SPEC_2025.name) ?: ColorSpec.SpecVersion.SPEC_2025.name
         set(value) = prefs.edit { putString("color_spec", value) }
 
-    override var wallpaperUri: String
-        get() = prefs.getString("wallpaper_uri", "") ?: ""
-        set(value) = prefs.edit { putString("wallpaper_uri", value) }
-
     override var enablePredictiveBack: Boolean
         get() = prefs.getBoolean("enable_predictive_back", false)
         set(value) = prefs.edit { putBoolean("enable_predictive_back", value) }
@@ -117,6 +125,18 @@ class SettingsRepositoryImpl : SettingsRepository {
     override var enableWebDebugging: Boolean
         get() = prefs.getBoolean("enable_web_debugging", false)
         set(value) = prefs.edit { putBoolean("enable_web_debugging", value) }
+
+    override fun isUsbDebuggingEnabled(): Boolean =
+        prefs.getBoolean("usb_debugging_enabled", false)
+
+    override fun setUsbDebuggingEnabled(enabled: Boolean): Boolean {
+        val value = if (enabled) 1 else 0
+        val ok = runCatching {
+            Shell.cmd("settings put global adb_enabled $value").exec().isSuccess
+        }.getOrDefault(false)
+        if (ok) prefs.edit { putBoolean("usb_debugging_enabled", enabled) }
+        return ok
+    }
 
     override var moduleSortEnabledFirst: Boolean
         get() = prefs.getBoolean("module_sort_enabled_first", false)

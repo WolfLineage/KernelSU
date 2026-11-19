@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.module
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import android.annotation.SuppressLint
 import android.app.Activity.RESULT_OK
@@ -261,8 +260,6 @@ fun ModulePagerMiuix(
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 searchStatus.TopAppBarAnim(backgroundColor = barColor) {

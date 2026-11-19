@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.template
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.animateDpAsState
@@ -146,8 +145,6 @@ fun AppProfileTemplateScreenMiuix(
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 onBack = actions.onBack,

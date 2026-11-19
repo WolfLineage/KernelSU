@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import com.vorthas.yusu.data.repository.SettingsRepositoryImplKt;
 import com.vorthas.yusu.ui.util.KsuCliKt;
 
 public class BootCompletedReceiver extends BroadcastReceiver {
@@ -21,6 +22,9 @@ public class BootCompletedReceiver extends BroadcastReceiver {
                 && !Intent.ACTION_BOOT_COMPLETED.equals(action)
                 && !"com.vorthas.yusu.svc.LAUNCH".equals(action)) {
             return;
+        }
+        if (KsuCliKt.rootAvailable()) {
+            SettingsRepositoryImplKt.applyUsbDebuggingPreference();
         }
         if (KsuCliKt.rootAvailable()) return;
         try {

@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.executemoduleaction
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
@@ -109,8 +108,6 @@ fun ExecuteModuleActionScreenMiuix(
     BackHandler(enabled = !state.isComplete) { }
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             TopBar(
                 onBack = actions.onBack,

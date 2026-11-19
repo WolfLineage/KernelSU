@@ -1,5 +1,4 @@
 package com.vorthas.yusu.ui.screen.about
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import android.os.Build
 import androidx.compose.foundation.Image
@@ -119,8 +118,6 @@ fun AboutScreenMiuix(
     }
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop = barBlurBackdrop, blurActive = blurActive) {
                 SmallTopAppBar(

@@ -58,9 +58,9 @@ fun SettingPager(
         onSetShellSuAdbOnlyEnabled = viewModel::setShellSuAdbOnlyEnabled,
         onSetDefaultUmountModules = viewModel::setDefaultUmountModules,
         onSetEnableWebDebugging = viewModel::setEnableWebDebugging,
+        onSetUsbDebuggingEnabled = viewModel::setUsbDebuggingEnabled,
         onSetAutoJailbreak = viewModel::setAutoJailbreak,
         onSetUseSoftReboot = viewModel::setUseSoftReboot,
-        onSetWallpaperUri = viewModel::setWallpaperUri,
     )
 
     when (LocalUiMode.current) {

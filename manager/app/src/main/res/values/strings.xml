@@ -187,6 +187,9 @@
     <string name="external_link_open_failed">Unable to open link</string>
     <string name="enable_web_debugging">WebView debugging</string>
     <string name="enable_web_debugging_summary">Can be used to debug WebUI. Please enable only when needed.</string>
+    <string name="settings_usb_debugging">USB debugging</string>
+    <string name="settings_usb_debugging_summary">Quickly turn system USB debugging on or off. Off by default.</string>
+    <string name="settings_usb_debugging_failed">Failed to change USB debugging state</string>
     <string name="direct_install">Direct install (Recommended)</string>
     <string name="select_file">Select a file and patch</string>
     <string name="download_file">Download a file and patch</string>
@@ -246,10 +249,6 @@
     <string name="group_contains_apps">Contains %d apps</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_summary">Choose the app theme mode.</string>
-    <string name="settings_theme_wallpaper">Custom wallpaper</string>
-    <string name="settings_theme_wallpaper_summary">Use an image as the app background</string>
-    <string name="settings_theme_wallpaper_current">Wallpaper applied. Tap to change it.</string>
-    <string name="settings_theme_wallpaper_remove">Remove wallpaper</string>
     <string name="settings_theme_mode_system">Follow system</string>
     <string name="settings_theme_mode_light">Light</string>
     <string name="settings_theme_mode_dark">Dark</string>

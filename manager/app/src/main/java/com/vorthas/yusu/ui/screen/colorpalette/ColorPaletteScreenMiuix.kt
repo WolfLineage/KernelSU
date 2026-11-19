@@ -1,10 +1,6 @@
 package com.vorthas.yusu.ui.screen.colorpalette
-import com.vorthas.yusu.ui.theme.wallpaperContainerColor
 
 import android.annotation.SuppressLint
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -42,7 +38,6 @@ import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.CallToAction
 import androidx.compose.material.icons.rounded.Colorize
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DesignServices
 import androidx.compose.material.icons.rounded.Pin
@@ -67,7 +62,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -117,22 +111,8 @@ fun ColorPaletteScreenMiuix(
     val uiState = state.uiState
     val currentColorMode = state.currentColorMode
     val isDark = currentColorMode.isDark || currentColorMode.isSystem && isSystemInDarkTheme()
-    val context = LocalContext.current
-    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            actions.onSetWallpaperUri(uri.toString())
-        }
-    }
 
     Scaffold(
-
-        containerColor = wallpaperContainerColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surface),
         topBar = {
             BlurredBar(backdrop) {
                 TopAppBar(
@@ -198,47 +178,6 @@ fun ColorPaletteScreenMiuix(
                             actions.onSetThemeMode(index)
                         },
                     )
-
-                    Card(
-                        modifier = Modifier
-                            .padding(top = 12.dp)
-                            .fillMaxWidth(),
-                    ) {
-                        val wallpaperSet = uiState.wallpaperUri.isNotBlank()
-                        ArrowPreference(
-                            title = stringResource(id = R.string.settings_theme_wallpaper),
-                            summary = stringResource(
-                                if (wallpaperSet) {
-                                    R.string.settings_theme_wallpaper_current
-                                } else {
-                                    R.string.settings_theme_wallpaper_summary
-                                }
-                            ),
-                            startAction = {
-                                Icon(
-                                    Icons.Rounded.Wallpaper,
-                                    modifier = Modifier.padding(end = 6.dp),
-                                    contentDescription = stringResource(id = R.string.settings_theme_wallpaper),
-                                    tint = colorScheme.onBackground,
-                                )
-                            },
-                            onClick = { wallpaperPicker.launch("image/*") },
-                        )
-                        if (wallpaperSet) {
-                            ArrowPreference(
-                                title = stringResource(id = R.string.settings_theme_wallpaper_remove),
-                                startAction = {
-                                    Icon(
-                                        Icons.Rounded.Delete,
-                                        modifier = Modifier.padding(end = 6.dp),
-                                        contentDescription = stringResource(id = R.string.settings_theme_wallpaper_remove),
-                                        tint = colorScheme.onBackground,
-                                    )
-                                },
-                                onClick = { actions.onSetWallpaperUri("") },
-                            )
-                        }
-                    }
 
                     Card(
                         modifier = Modifier

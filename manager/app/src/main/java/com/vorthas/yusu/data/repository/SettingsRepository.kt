@@ -9,7 +9,6 @@ interface SettingsRepository {
     var keyColor: Int
     var colorStyle: String
     var colorSpec: String
-    var wallpaperUri: String
     var enablePredictiveBack: Boolean
     var enableSwipeDismiss: Boolean
     var pagerInterceptionMode: Int
@@ -61,6 +60,9 @@ interface SettingsRepository {
     suspend fun getShellSuAdbOnlyPersistValue(): Long?
     suspend fun getShellSuAdbOnlyValue(): Long?
     fun setShellSuAdbOnlyEnabled(enabled: Boolean): Boolean
+
+    fun isUsbDebuggingEnabled(): Boolean
+    fun setUsbDebuggingEnabled(enabled: Boolean): Boolean
 
     fun isDefaultUmountModules(): Boolean
     fun setDefaultUmountModules(enabled: Boolean): Boolean

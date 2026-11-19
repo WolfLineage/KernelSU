@@ -15,6 +15,5 @@ data class MainActivityUiState(
     val enableSwipeDismiss: Boolean,
     val pagerInterceptionMode: Int,
     val moduleDescriptionMaxLines: Int = 4,
-    val wallpaperUri: String = "",
     val uiMode: UiMode,
 )
