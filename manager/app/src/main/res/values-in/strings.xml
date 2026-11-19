@@ -99,9 +99,9 @@
     <string name="safe_mode_module_disabled">Pemasangan modul dinonaktifkan pada mode aman</string>
     <string name="reboot_to_apply">Mulai ulang untuk menerapkan</string>
     <string name="module_magisk_conflict">Modul tidak tersedia karena konflik dengan Magisk!</string>
-    <string name="home_learn_kernelsu">Pelajari YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/id_ID/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">Pelajari cara memasang YuSU dan menggunakan modul</string>
+    <string name="home_learn_yusu">Pelajari YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/id_ID/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">Pelajari cara memasang YuSU dan menggunakan modul</string>
     <string name="home_support_title">Dukung Kami</string>
     <string name="home_support_content">YuSU gratis dan sumber terbuka, sekarang dan selamanya. Namun, Anda dapat menunjukkan kepedulian Anda kepada kami dengan memberikan donasi.</string>
     <string name="home_gki_warning">Mulai dari v3.0.0, fungsi mode GKI dibatasi untuk lingkungan pengujian. Kami tidak menyarankan untuk penggunaan harian, dan berkas image tidak akan lagi disediakan.</string>
@@ -298,7 +298,7 @@
     <string name="settings_enable_glass_summary">Aktifkan efek kaca cair (liquid glass) untuk bilah bawah mengambang</string>
     <string name="show_only_primary_user_apps">Hanya tampilkan aplikasi pengguna utama</string>
     <string name="settings_auto_jailbreak">Jailbreak otomatis</string>
-    <string name="settings_auto_jailbreak_summary">Secara otomatis menggunakan Magica untuk meningkatkan hak akses ketika SELinux Permissive terdeteksi saat boot. Membutuhkan pemberian izin mulai otomatis ke aplikasi ini.</string>
+    <string name="settings_auto_jailbreak_summary">Secara otomatis menggunakan YuSU untuk meningkatkan hak akses ketika SELinux Permissive terdeteksi saat boot. Membutuhkan pemberian izin mulai otomatis ke aplikasi ini.</string>
     <string name="settings_soft_reboot">Mulai ulang lunak</string>
     <string name="settings_soft_reboot_summary">Gunakan mulai ulang lunak alih-alih mulai ulang normal saat memasang, memperbarui, atau mengaktifkan/menonaktifkan modul.</string>
     <string name="allow_shell">Selalu berikan izin akses root ke Shell</string>

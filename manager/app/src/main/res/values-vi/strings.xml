@@ -14,8 +14,8 @@
     <string name="module_downloading">Đang tải xuống module: %s</string>
     <string name="module_start_downloading">Bắt đầu tải xuống: %s</string>
     <string name="new_version_available">Phiên bản mới %s đã có sẵn, nhấn để cập nhật!</string>
-    <string name="home_learn_kernelsu">Tìm hiểu về YuSU</string>
-    <string name="home_click_to_learn_kernelsu">Tìm hiểu cách cài đặt YuSU và sử dụng các module.</string>
+    <string name="home_learn_yusu">Tìm hiểu về YuSU</string>
+    <string name="home_click_to_learn_yusu">Tìm hiểu cách cài đặt YuSU và sử dụng các module.</string>
     <string name="home_support_title">Ủng hộ chúng tôi</string>
     <string name="home_support_content">YuSU sẽ luôn là miễn phí và mã nguồn mở. Tuy nhiên, bạn có thể cho chúng tôi thấy rằng bạn quan tâm bằng cách quyên góp!</string>
     <string name="about_source_code"><![CDATA[Xem mã nguồn tại %1$s<br/>Tham gia kênh %2$s của chúng tôi]]></string>
@@ -67,7 +67,7 @@
     <string name="show_system_apps">Hiển thị các ứng dụng hệ thống</string>
     <string name="safe_mode">Chế độ An toàn</string>
     <string name="reboot_to_apply">Khởi động lại để có hiệu lực</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
     <string name="profile_selinux_domain">Tên miền</string>
     <string name="profile_selinux_rules">Quy tắc</string>
     <string name="recently_installed">Mới vừa cài đặt</string>
@@ -250,7 +250,7 @@
     <string name="settings_enable_glass_summary">Kích hoạt hiệu ứng Liquid Glass cho thanh điều hướng nổi.</string>
     <string name="show_only_primary_user_apps">Không hiển thị các ứng dụng nhân bản</string>
     <string name="settings_auto_jailbreak">Tự động Jailbreak</string>
-    <string name="settings_auto_jailbreak_summary">Tự động sử dụng Magica để nâng cao quyền hạn khi phát hiện SELinux ở chế độ Permissive lúc khởi động. Yêu cầu cấp quyền tự khởi động cho ứng dụng này.</string>
+    <string name="settings_auto_jailbreak_summary">Tự động sử dụng YuSU để nâng cao quyền hạn khi phát hiện SELinux ở chế độ Permissive lúc khởi động. Yêu cầu cấp quyền tự khởi động cho ứng dụng này.</string>
     <string name="settings_soft_reboot">Khởi động lại mềm thay vì khởi động lại toàn bộ</string>
     <string name="settings_soft_reboot_summary">Sử dụng khởi động lại mềm thay vì khởi động lại toàn bộ khi cài đặt, cập nhật hoặc bật/tắt các module.</string>
     <string name="allow_shell">Luôn cấp quyền Root cho Shell</string>

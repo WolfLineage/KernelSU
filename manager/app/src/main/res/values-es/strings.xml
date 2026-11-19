@@ -105,9 +105,9 @@
     <string name="safe_mode_module_disabled">La instalación de módulos está desactivada en modo seguro</string>
     <string name="reboot_to_apply">Reinicia para aplicar cambios</string>
     <string name="module_magisk_conflict">¡Los módulos no están disponibles debido a un conflicto con Magisk!</string>
-    <string name="home_learn_kernelsu">Aprende YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">Aprende a instalar YuSU y a utilizar módulos</string>
+    <string name="home_learn_yusu">Aprende YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">Aprende a instalar YuSU y a utilizar módulos</string>
     <string name="home_support_title">Apóyanos</string>
     <string name="home_support_content">YuSU es, y siempre será, gratuito y de código abierto. Sin embargo, puedes demostrarnos que te importamos haciendo una donación.</string>
     <string name="home_gki_warning">A partir de la v3.0.0, el modo de trabajo GKI solo se usará en entornos de pruebas. No lo recomendamos para el uso diario y ya no se proporcionarán archivos de imagen.</string>
@@ -304,7 +304,7 @@
     <string name="settings_enable_glass_summary">Activa el efecto Liquid Glass en la barra inferior flotante.</string>
     <string name="show_only_primary_user_apps">Mostrar solo aplicaciones del usuario principal</string>
     <string name="settings_auto_jailbreak">Jailbreak automático</string>
-    <string name="settings_auto_jailbreak_summary">Usa Magica automáticamente para escalar privilegios cuando se detecte SELinux en modo permisivo al arrancar. Requiere conceder a esta aplicación el permiso de inicio automático.</string>
+    <string name="settings_auto_jailbreak_summary">Usa YuSU automáticamente para escalar privilegios cuando se detecte SELinux en modo permisivo al arrancar. Requiere conceder a esta aplicación el permiso de inicio automático.</string>
     <string name="settings_soft_reboot">Reinicio en caliente en lugar de reinicio completo</string>
     <string name="settings_soft_reboot_summary">Usa un reinicio en caliente en lugar de un reinicio completo al instalar, actualizar, activar o desactivar módulos.</string>
     <string name="allow_shell">Conceder siempre root al shell</string>

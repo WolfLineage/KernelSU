@@ -41,9 +41,9 @@
     <string name="safe_mode">Modo de segurança</string>
     <string name="reboot_to_apply">Reinicie para entrar em vigor</string>
     <string name="module_magisk_conflict">Os módulos estão indisponíveis devido a um conflito com Magisk!</string>
-    <string name="home_learn_kernelsu">Saiba mais sobre o YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/pt_BR/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">Saiba como instalar o YuSU e usar os módulos</string>
+    <string name="home_learn_yusu">Saiba mais sobre o YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/pt_BR/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">Saiba como instalar o YuSU e usar os módulos</string>
     <string name="home_support_title">Apoie-nos</string>
     <string name="home_support_content">YuSU sempre foi e sempre será, gratuito e de código aberto. No entanto, você pode nos ajudar enviando uma pequena doação.</string>
     <string name="about_source_code"><![CDATA[Veja o código-fonte no %1$s<br/>Junte-se ao nosso canal do %2$s]]></string>
@@ -307,7 +307,7 @@
     <string name="settings_enable_glass_summary">Ativa o efeito de vidro líquido na barra inferior flutuante.</string>
     <string name="show_only_primary_user_apps">Mostrar apenas apps do usuário principal</string>
     <string name="settings_auto_jailbreak">Jailbreak automático</string>
-    <string name="settings_auto_jailbreak_summary">Usa o Magica automaticamente para escalar privilégios quando o SELinux Permissivo é detectado na inicialização. Requer conceder permissão de inicialização automática a este app.</string>
+    <string name="settings_auto_jailbreak_summary">Usa o YuSU automaticamente para escalar privilégios quando o SELinux Permissivo é detectado na inicialização. Requer conceder permissão de inicialização automática a este app.</string>
     <string name="settings_soft_reboot">Reinicialização suave em vez de reiniciar</string>
     <string name="settings_soft_reboot_summary">Usa a reinicialização suave em vez de uma reinicialização completa ao instalar, atualizar ou alternar módulos.</string>
     <string name="allow_shell">Sempre conceder Root ao Shell</string>

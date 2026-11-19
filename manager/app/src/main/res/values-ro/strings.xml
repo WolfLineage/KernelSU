@@ -41,9 +41,9 @@
     <string name="safe_mode">Mod sigur</string>
     <string name="reboot_to_apply">Repornește pentru ca modificările să intre în vigoare</string>
     <string name="module_magisk_conflict">Modulele sunt dezactivate deoarece sunt în conflict cu cele ale Magisk-ului!</string>
-    <string name="home_learn_kernelsu">Află mai multe despre YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">Află cum să instalezi YuSU și să utilizezi module</string>
+    <string name="home_learn_yusu">Află mai multe despre YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">Află cum să instalezi YuSU și să utilizezi module</string>
     <string name="home_support_title">Suport</string>
     <string name="home_support_content">YuSU este, și va fi întotdeauna, gratuit și cu codul sursă deschis. Cu toate acestea, ne poți arăta că îți pasă făcând o donație.</string>
     <string name="about_source_code"><![CDATA[Vezi codul sursă la %1$s<br/>Alătură-te canalului nostru %2$s]]></string>

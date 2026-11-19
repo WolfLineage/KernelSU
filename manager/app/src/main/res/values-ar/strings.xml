@@ -41,9 +41,9 @@
     <string name="safe_mode">الوضع الآمن</string>
     <string name="reboot_to_apply">إعادة التشغيل لتطبيق التغييرات</string>
     <string name="module_magisk_conflict">الوحدات غير متاحة بسبب تعارضها مع Magisk!</string>
-    <string name="home_learn_kernelsu">تعلم YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">تعرف على كيفية تثبيت YuSU واستخدام الإضافات</string>
+    <string name="home_learn_yusu">تعلم YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">تعرف على كيفية تثبيت YuSU واستخدام الإضافات</string>
     <string name="home_support_title">إدعمنا</string>
     <string name="home_support_content">YuSU سيظل دائماً مجانياً ومفتوح المصدر. مع ذلك، يمكنك متى ما استطعت أن تظهر لنا أنك تهتم بالتبرع.</string>
     <string name="about_source_code"><![CDATA[أنظر إلى مصدر البرمجة في %1$s<br/>إنضم إلى قناتنا في %2$s ]]></string>

@@ -4,7 +4,7 @@
 
     const CHUNK_SIZE = 512 * 1024;
     const SIZE_THRESHOLD = 10 * 1024 * 1024;
-    const INTERNAL_BLOB_HOST = 'blob-download.kernelsu.internal';
+    const INTERNAL_BLOB_HOST = 'blob-download.yusu.internal';
 
     const blobMap = new Map();
     const originalCreateObjectURL = URL.createObjectURL;

@@ -135,7 +135,7 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
     init_event::run_stage("boot-completed", ScriptWait::NoWait);
 
     // 14. Restart Manager so it gets a fresh ksu fd from the newly loaded kernel module
-    info!("Restarting KernelSU Manager {package_name}...");
+    info!("Restarting YuSU Manager {package_name}...");
     let _ = Command::new("am")
         .args(["force-stop", package_name])
         .status();
@@ -143,7 +143,7 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
         .args([
             "start",
             "-n",
-            &format!("{package_name}/me.weishu.kernelsu.ui.MainActivity"),
+            &format!("{package_name}/com.vorthas.yusu.ui.MainActivity"),
         ])
         .status();
 

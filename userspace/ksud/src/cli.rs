@@ -44,17 +44,17 @@ enum Commands {
 
     /// Load kernelsu.ko and execute late-load stage scripts
     LateLoad {
-        /// Use adb root to execute late-load for jailbreaking by Magica
+        /// Use adb root to execute late-load in service mode
         #[arg(long, default_missing_value = "5555", num_args = 0..=1)]
-        magica: Option<u16>,
+        svc: Option<u16>,
 
         /// Pass allow_shell=1 when loading kernelsu.ko
         #[arg(long)]
         allow_shell: bool,
 
-        /// Restore adb properties after magica late-load
+        /// Restore adb properties after svc late-load
         #[arg(long)]
-        post_magica: bool,
+        post_svc: bool,
 
         /// Specify kernel KMI version instead of auto-detection
         #[arg(long)]
@@ -80,7 +80,7 @@ enum Commands {
     /// Install KernelSU userspace component to system
     Install {
         #[arg(long, default_value = None)]
-        libadbroot: Option<PathBuf>,
+        adbh: Option<PathBuf>,
 
         #[arg(long, default_value = None)]
         data_path: Option<PathBuf>,
@@ -648,9 +648,9 @@ pub fn run() -> Result<()> {
             }
         }
         Commands::Install {
-            libadbroot,
+            adbh,
             data_path,
-        } => utils::install(libadbroot, data_path),
+        } => utils::install(adbh, data_path),
         Commands::Unload => crate::unload::unload(),
         Commands::Uninstall { package_name } => utils::uninstall(&package_name),
         Commands::Sepolicy { command } => match command {
@@ -659,21 +659,21 @@ pub fn run() -> Result<()> {
             Sepolicy::Check { sepolicy } => crate::sepolicy::check_rule(&sepolicy),
         },
         Commands::LateLoad {
-            magica,
+            svc,
             allow_shell,
-            post_magica,
+            post_svc,
             kmi,
             package_name,
         } => {
-            if let Some(port) = magica {
+            if let Some(port) = svc {
                 return crate::magica::run(port, &package_name, allow_shell).map_err(|e| {
-                    error!("Error running magica: {e}");
+                    error!("Error running service mode: {e}");
                     e
                 });
             }
             let result = crate::late_load::run(&package_name, kmi, allow_shell);
-            if post_magica {
-                info!("Restoring adb properties (post-magica cleanup)...");
+            if post_svc {
+                info!("Restoring adb properties (post-svc cleanup)...");
                 if let Err(e) = crate::magica::disable_adb_root() {
                     error!("disable adb root failed: {e}");
                 }

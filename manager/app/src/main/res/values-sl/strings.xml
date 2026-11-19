@@ -24,9 +24,9 @@
     <string name="module_uninstall_success">%s je odmeščen</string>
     <string name="module_author">Avtor</string>
     <string name="send_log">Prijavite dnevnik</string>
-    <string name="home_learn_kernelsu">Naučite se YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">Naučite se, kako namestiti YuSU in uporabiti module</string>
+    <string name="home_learn_yusu">Naučite se YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">Naučite se, kako namestiti YuSU in uporabiti module</string>
     <string name="about_source_code">Glej odprto kodo na %1$s<br/>Pridružite se našem %2$s kanalu</string>
     <string name="profile_default">Privzeto</string>
     <string name="profile_template">Predloga</string>

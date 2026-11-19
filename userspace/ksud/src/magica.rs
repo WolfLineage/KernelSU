@@ -144,13 +144,13 @@ pub fn run(port: u16, package_name: &String, allow_shell: bool) -> Result<()> {
 
     let self_path = std::env::current_exe().context("Failed to get self exe path")?;
 
-    // Execute late-load with --post-magica via adb shell.
+    // Execute late-load with --post-svc via adb shell.
     // The late-load process has full root + su domain and will:
     // 1. Load kernelsu.ko, enforce SELinux, run stage scripts
     // 2. Restore adb properties (disable adb root/tcp mode)
     let allow_shell_arg = if allow_shell { " --allow-shell" } else { "" };
     let cmd = format!(
-        "{} late-load --post-magica --package-name {}{}",
+        "{} late-load --post-svc --package-name {}{}",
         self_path.display(),
         package_name,
         allow_shell_arg

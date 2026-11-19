@@ -82,7 +82,7 @@ bun run docs:build  # Production build
 - Only one metamodule can be active; keep meta hooks in sync with ksud expectations.
 - Manager JNI mirrors every supercall; kernel or ksud API changes must be reflected there to avoid runtime drift.
 - Do not skip the `cargo ndk` steps; plain `cargo check` will not validate Android targets.
-- Manager builds fail if `libksud.so` is missing; create it before any Gradle command.
+- Manager builds fail if `libysd.so` is missing; create it before any Gradle command.
 
 ## Git Commit
 

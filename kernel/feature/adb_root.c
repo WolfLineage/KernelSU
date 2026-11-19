@@ -46,15 +46,15 @@ static long is_exec_adbd(const char __user *filename_user)
 
 static long is_libadbroot_ok()
 {
-    static const char kLibAdbRoot[] = "/data/adb/yusu/lib/libadbroot.so";
+    static const char kLibAdbRoot[] = "/data/adb/yusu/lib/libadbh.so";
     struct path path;
     long ret = kern_path(kLibAdbRoot, 0, &path);
     if (ret < 0) {
         if (ret == -ENOENT) {
-            pr_err("libadbroot.so not exists, skip adb root. Please run `ksud install`\n");
+            pr_err("libadbh.so not exists, skip adb root. Please run `ksud install`\n");
             ret = 0;
         } else {
-            pr_err("access libadbroot.so failed: %ld, skip adb root\n", ret);
+            pr_err("access libadbh.so failed: %ld, skip adb root\n", ret);
         }
         return ret;
     } else {
@@ -66,7 +66,7 @@ static long is_libadbroot_ok()
 
 static long setup_ld_preload(struct pt_regs *regs, unsigned long *envp_p)
 {
-    static const char kLdPreload[] = "LD_PRELOAD=/data/adb/yusu/lib/libadbroot.so";
+    static const char kLdPreload[] = "LD_PRELOAD=/data/adb/yusu/lib/libadbh.so";
     static const char kLdLibraryPath[] = "LD_LIBRARY_PATH=/data/adb/yusu/lib";
     static const size_t kReadEnvBatch = 16;
     static const size_t kPtrSize = sizeof(unsigned long);

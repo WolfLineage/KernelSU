@@ -29,7 +29,7 @@ mod android {
     // YuSU fork: the installed daemon is named yusud instead of ksud so that
     // /data/adb no longer carries the stock KernelSU binary name.
     pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "yusud");
-    pub const LIBADBROOT_PATH: &str = concatcp!(LIBRARY_DIR, "libadbroot.so");
+    pub const ADBH_PATH: &str = concatcp!(LIBRARY_DIR, "libadbh.so");
 
     pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "yusud");
 

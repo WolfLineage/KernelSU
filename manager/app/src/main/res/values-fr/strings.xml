@@ -36,15 +36,15 @@
     <string name="reboot_download">Redémarrer en mode Download</string>
     <string name="module_author">Auteur</string>
     <string name="module_uninstall_confirm">Voulez-vous vraiment désinstaller le module %s ?</string>
-    <string name="home_learn_kernelsu">Apprenez à utiliser YuSU</string>
+    <string name="home_learn_yusu">Apprenez à utiliser YuSU</string>
     <string name="show_system_apps">Afficher les applications système</string>
     <string name="safe_mode">Mode sans échec</string>
     <string name="send_log">Envoyer les journaux</string>
     <string name="reboot_to_apply">Redémarrez pour appliquer les modifications</string>
     <string name="module_magisk_conflict">Les modules sont indisponibles en raison d\'un conflit avec Magisk !</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
     <string name="home_support_title">Soutenez-nous</string>
-    <string name="home_click_to_learn_kernelsu">Découvrez comment installer YuSU et utiliser les modules.</string>
+    <string name="home_click_to_learn_yusu">Découvrez comment installer YuSU et utiliser les modules.</string>
     <string name="home_support_content">YuSU est, et restera toujours, gratuit et open-source. Néanmoins, vous pouvez nous témoigner de votre soutien en nous faisant un don.</string>
     <string name="about_source_code"><![CDATA[Voir le code source à %1$s<br/>Rejoignez notre canal %2$s]]></string>
     <string name="profile_template">Modèle</string>
@@ -232,7 +232,7 @@
     <string name="settings_enable_glass_summary">Activez l\'effet Liquid Glass pour la barre inférieure flottante</string>
     <string name="show_only_primary_user_apps">Afficher seulement les applis de l\'utilisateur principal</string>
     <string name="settings_auto_jailbreak">Jailbreak automatique</string>
-    <string name="settings_auto_jailbreak_summary">Utilisez automatiquement Magica pour l\'élévation de privilèges lorsque SELinux permissif est détecté au démarrage de l\'appareil. L\'autorisation de démarrage automatique devra être accordé à cette application.</string>
+    <string name="settings_auto_jailbreak_summary">Utilisez automatiquement YuSU pour l\'élévation de privilèges lorsque SELinux permissif est détecté au démarrage de l\'appareil. L\'autorisation de démarrage automatique devra être accordé à cette application.</string>
     <string name="allow_shell">Toujours accorder l\'accès root à Shell</string>
     <string name="allow_shell_summary">Autorisez toujours adb shell à appeler su. N\'activez cette option qu\'en cas de nécessité absolue.</string>
     <string name="enable_adb">Forcer l\'activation d\'adb au boot</string>

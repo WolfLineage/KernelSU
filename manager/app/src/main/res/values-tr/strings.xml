@@ -41,9 +41,9 @@
     <string name="safe_mode">Güvenli mod</string>
     <string name="reboot_to_apply">Değişikliklerin uygulanması için cihazı yeniden başlat</string>
     <string name="module_magisk_conflict">Magisk ile çakışma nedeniyle modüller kullanılamıyor!</string>
-    <string name="home_learn_kernelsu">YuSU\'yu öğrenin</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">YuSU\'nun nasıl kurulacağını ve modüllerin nasıl kullanılacağını öğrenin.</string>
+    <string name="home_learn_yusu">YuSU\'yu öğrenin</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">YuSU\'nun nasıl kurulacağını ve modüllerin nasıl kullanılacağını öğrenin.</string>
     <string name="home_support_title">Bizi Destekleyin</string>
     <string name="home_support_content">YuSU ücretsiz ve açık kaynaklı bir yazılımdır ve her zaman öyle kalacaktır. Ancak bağış yaparak bize destek olduğunuzu gösterebilirsiniz.</string>
     <string name="about_source_code"><![CDATA[%1$s adresinde kaynak kodunu görüntüleyin.<br/>%2$s kanalımıza katılın.]]></string>
@@ -235,7 +235,7 @@
     <string name="settings_enable_glass_summary">Yüzen alt çubuk için liquid glass efektini etkinleştir</string>
     <string name="show_only_primary_user_apps">Yalnızca birincil kullanıcı uygulamalarını göster</string>
     <string name="settings_auto_jailbreak">Otomatik jailbreak</string>
-    <string name="settings_auto_jailbreak_summary">Önyükleme sırasında Permissive SELinux algılandığında, ayrıcalıkları yükseltmek için otomatik olarak Magica kullanılır. Bunun için bu uygulamaya otomatik başlatma izni verilmesi gerekir.</string>
+    <string name="settings_auto_jailbreak_summary">Önyükleme sırasında Permissive SELinux algılandığında, ayrıcalıkları yükseltmek için otomatik olarak YuSU kullanılır. Bunun için bu uygulamaya otomatik başlatma izni verilmesi gerekir.</string>
     <string name="allow_shell">Shell\'e her zaman root erişimi ver</string>
     <string name="allow_shell_summary">adb shell\'in su komutunu çalıştırmasına her zaman izin verin. Bu seçeneği kesinlikle gerekli olmadıkça etkinleştirmeyin.</string>
     <string name="enable_adb">Önyükleme sırasında adb\'yi zorla etkinleştir</string>

@@ -92,9 +92,9 @@
     <string name="safe_mode_module_disabled">处于安全模式下，禁止安装模块</string>
     <string name="reboot_to_apply">重启生效</string>
     <string name="module_magisk_conflict">因与 Magisk 有冲突，所有模块不可用！</string>
-    <string name="home_learn_kernelsu">了解 YuSU</string>
-    <string name="home_learn_kernelsu_url">https://kernelsu.org/zh_CN/guide/what-is-kernelsu.html</string>
-    <string name="home_click_to_learn_kernelsu">了解如何安装 YuSU 以及如何开发模块</string>
+    <string name="home_learn_yusu">了解 YuSU</string>
+    <string name="home_learn_yusu_url">https://kernelsu.org/zh_CN/guide/what-is-kernelsu.html</string>
+    <string name="home_click_to_learn_yusu">了解如何安装 YuSU 以及如何开发模块</string>
     <string name="home_support_title">支持开发</string>
     <string name="home_support_content">YuSU 将保持免费开源，向开发者捐赠以表示支持</string>
     <string name="home_gki_warning">自 v3.0.0 起 GKI 工作模式将仅用于测试环境，我们不建议用于日常使用，也不再提供镜像文件</string>
@@ -284,7 +284,7 @@
     <string name="settings_enable_glass_summary">启用悬浮底栏的液态玻璃效果</string>
     <string name="show_only_primary_user_apps">只显示主用户应用</string>
     <string name="settings_auto_jailbreak">自动越狱</string>
-    <string name="settings_auto_jailbreak_summary">开机检测到 Permissive SELinux 时自动使用 Magica 提权。需要授予本应用自启动权限！</string>
+    <string name="settings_auto_jailbreak_summary">开机检测到 Permissive SELinux 时自动使用 YuSU 提权。需要授予本应用自启动权限！</string>
     <string name="settings_soft_reboot">使用软重启代替重启</string>
     <string name="settings_soft_reboot_summary">安装、更新或开关模块时使用软重启代替完整重启</string>
     <string name="allow_shell">总是给 shell 授予 Root 权限</string>
