@@ -305,7 +305,7 @@ pub fn link_daemon_exec_alias() -> Result<()> {
     let alias = PathBuf::from(defs::DAEMON_EXEC_ALIAS);
     // On upgrade from the old layout, yusud is a real file (the old daemon).
     // Replace it with a symlink to the real ksud so rc exec runs the new binary.
-    if let Ok(md) = alias.symlink_metadata() {
+    if let std::result::Result::Ok(md) = alias.symlink_metadata() {
         if md.file_type().is_file() {
             let _ = remove_file(&alias);
         }
