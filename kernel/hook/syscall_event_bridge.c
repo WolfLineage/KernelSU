@@ -64,6 +64,22 @@ long __nocfi ksu_hook_faccessat(int orig_nr, const struct pt_regs *regs)
     return ksu_handle_faccessat_sucompat(orig_nr, (struct pt_regs *)regs);
 }
 
+// statx() has the same (dirfd, pathname, ...) argument layout as newfstatat():
+// the pathname is PARM2, so it can share the exact same sucompat handler.
+//
+// This hook is NOT about adding functionality -- it exists to make statx()
+// traverse the very same dispatcher -> hook -> handler path as newfstatat().
+// Without it a detector can time newfstatat against an unhooked statx and get
+// a stable >1.2 ratio. With it both syscalls pay identical overhead and the
+// ratio collapses to ~1, removing the user-space timing oracle.
+long __nocfi ksu_hook_statx(int orig_nr, const struct pt_regs *regs)
+{
+    if (!ksu_su_compat_enabled)
+        return ksu_syscall_table[orig_nr](regs);
+
+    return ksu_handle_stat_sucompat(orig_nr, (struct pt_regs *)regs);
+}
+
 DEFINE_STATIC_KEY_TRUE(ksud_execve_key);
 
 void ksu_stop_ksud_execve_hook()

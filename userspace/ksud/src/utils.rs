@@ -304,40 +304,25 @@ pub fn link_ksud_to_bin() -> Result<()> {
     Ok(())
 }
 
-/// Temporary compatibility aliases for module scripts that still probe the
-/// stock KernelSU paths. The aliases exist only while a script is running and
-/// are removed on drop, so a user-space scan never observes them at rest.
-pub struct LegacyAliases {
-    created: Vec<PathBuf>,
-}
-
-impl LegacyAliases {
-    pub fn create() -> Self {
-        let mut created = Vec::new();
-        let pairs: [(&str, &str); 2] = [
-            ("/data/adb/ksu", defs::WORKING_DIR.trim_end_matches('/')),
-            ("/data/adb/ksud", defs::DAEMON_PATH),
-        ];
-        for (link_path, target) in pairs {
-            let link = PathBuf::from(link_path);
-            // exists() follows symlinks, so a dangling link would be missed.
-            if link.symlink_metadata().is_ok() {
-                continue;
-            }
-            if std::os::unix::fs::symlink(target, &link).is_ok() {
-                created.push(link);
-            }
+/// Persistent compatibility aliases for third-party modules that probe the
+/// stock KernelSU paths. Creating these at install / boot time restores the
+/// fixed interface contract (`/data/adb/ksu`, `/data/adb/ksud`, `ksud` in PATH)
+/// that adapted modules rely on to detect the root manager.
+pub fn link_legacy_paths() -> Result<()> {
+    let pairs: [(&str, &str); 3] = [
+        ("/data/adb/ksu", defs::WORKING_DIR.trim_end_matches('/')),
+        ("/data/adb/ksud", defs::DAEMON_PATH),
+        (defs::DAEMON_PATH, defs::BINARY_DIR.trim_end_matches('/')),
+    ];
+    for (link_path, target) in pairs {
+        let link = PathBuf::from(link_path);
+        // exists() follows symlinks, so a dangling link would be missed.
+        if link.symlink_metadata().is_ok() {
+            continue;
         }
-        Self { created }
+        let _ = std::os::unix::fs::symlink(target, &link);
     }
-}
-
-impl Drop for LegacyAliases {
-    fn drop(&mut self) {
-        for link in &self.created {
-            let _ = remove_file(link);
-        }
-    }
+    Ok(())
 }
 
 pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> {
@@ -354,6 +339,7 @@ pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> 
     assets::ensure_binaries(false).with_context(|| "Failed to extract assets")?;
 
     link_ksud_to_bin()?;
+    link_legacy_paths()?;
 
     if let Some(adbh) = adbh {
         ensure_dir_exists(defs::LIBRARY_DIR)?;

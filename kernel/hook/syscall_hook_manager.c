@@ -141,6 +141,11 @@ void __init ksu_syscall_hook_manager_init(void)
     ksu_register_syscall_hook(__NR_execveat, ksu_hook_execveat);
     ksu_register_syscall_hook(__NR_newfstatat, ksu_hook_newfstatat);
     ksu_register_syscall_hook(__NR_faccessat, ksu_hook_faccessat);
+    // Keep statx on the same hook path as newfstatat so timing comparisons
+    // between them cannot reveal the sucompat interception.
+#ifdef __NR_statx
+    ksu_register_syscall_hook(__NR_statx, ksu_hook_statx);
+#endif
 
 #ifdef CONFIG_HAVE_SYSCALL_TRACEPOINTS
     ret = register_trace_prio_sys_enter(ksu_sys_enter_handler, NULL, INT_MIN);
@@ -177,6 +182,9 @@ void __exit ksu_syscall_hook_manager_exit(void)
     ksu_unregister_syscall_hook(__NR_execveat);
     ksu_unregister_syscall_hook(__NR_newfstatat);
     ksu_unregister_syscall_hook(__NR_faccessat);
+#ifdef __NR_statx
+    ksu_unregister_syscall_hook(__NR_statx);
+#endif
 
     ksu_syscall_hook_exit();
 
