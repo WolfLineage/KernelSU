@@ -296,26 +296,6 @@ pub fn link_ksud_to_bin() -> Result<()> {
     Ok(())
 }
 
-/// The real daemon is `/data/adb/ksud` (stock name, for module compatibility).
-/// init.rc execs `/data/adb/yusud` instead so the daemon's comm stays "yusud"
-/// and a plain /proc name scan sees YuSU, not KernelSU. This is a YuSU-owned
-/// name (not a stock KSU marker), so it does not re-expose KSU.
-pub fn link_daemon_exec_alias() -> Result<()> {
-    let real = PathBuf::from(defs::DAEMON_PATH);
-    let alias = PathBuf::from(defs::DAEMON_EXEC_ALIAS);
-    // On upgrade from the old layout, yusud is a real file (the old daemon).
-    // Replace it with a symlink to the real ksud so rc exec runs the new binary.
-    if let std::result::Result::Ok(md) = alias.symlink_metadata() {
-        if md.file_type().is_file() {
-            let _ = remove_file(&alias);
-        }
-    }
-    if real.exists() && alias.symlink_metadata().is_err() {
-        std::os::unix::fs::symlink(&real, &alias)?;
-    }
-    Ok(())
-}
-
 pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> {
     ensure_dir_exists(defs::ADB_DIR)?;
     let _ = std::fs::remove_file(defs::DAEMON_PATH);
@@ -330,7 +310,11 @@ pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> 
     assets::ensure_binaries(false).with_context(|| "Failed to extract assets")?;
 
     link_ksud_to_bin()?;
-    link_daemon_exec_alias()?;
+
+    // Remove the legacy yusud exec alias left by older builds. Nothing uses
+    // it now (init.rc execs ksud directly), and removing it keeps a single
+    // consistent daemon path.
+    let _ = remove_file("/data/adb/yusud");
 
     if let Some(adbh) = adbh {
         ensure_dir_exists(defs::LIBRARY_DIR)?;

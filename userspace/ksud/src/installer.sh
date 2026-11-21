@@ -74,9 +74,8 @@ print_title() {
   ui_print "$bar"
 }
 
-# Resolve the daemon binary: some layouts use ksud, others keep a yusud alias.
+# Daemon binary (stock path, single consistent layout).
 KSUD_BIN=/data/adb/ksud
-[ -x /data/adb/yusud ] && KSUD_BIN=/data/adb/yusud
 
 check_sepolicy() {
     "$KSUD_BIN" sepolicy check "$1"

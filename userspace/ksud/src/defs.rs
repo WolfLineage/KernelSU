@@ -12,8 +12,7 @@ mod android {
 
     pub const ADB_DIR: &str = "/data/adb/";
     // Real working directory uses the stock KSU name for maximum module
-    // compatibility. The runtime process name stays "yusud" via a dedicated
-    // exec alias (DAEMON_EXEC_ALIAS), so /proc traversal still shows YuSU.
+    // compatibility and a single, consistent layout.
     pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
     // Legacy YuSU directory kept only for one-shot migration on upgrade.
     pub const LEGACY_WORKING_DIR: &str = concatcp!(ADB_DIR, "yusu/");
@@ -29,9 +28,6 @@ mod android {
     pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".ksurc");
     // Real daemon binary uses the stock name; modules calling `ksud` work.
     pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "ksud");
-    // Exec alias: init.rc runs this path so the daemon's comm is "yusud"
-    // instead of "ksud", defeating a plain /proc name scan.
-    pub const DAEMON_EXEC_ALIAS: &str = concatcp!(ADB_DIR, "yusud");
     pub const ADBH_PATH: &str = concatcp!(LIBRARY_DIR, "libadbh.so");
 
     pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "ksud");

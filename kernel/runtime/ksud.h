@@ -3,8 +3,9 @@
 
 #include <asm/syscall.h>
 
-/* YuSU fork: daemon binary renamed from ksud to yusud to avoid signature matching. */
-#define KSUD_PATH "/data/adb/yusud"
+/* Daemon binary: use the real ksud path directly so init.rc exec has the
+ * correct SELinux context and post-fs-data scripts (modules) always run. */
+#define KSUD_PATH "/data/adb/ksud"
 
 void ksu_ksud_init();
 void ksu_ksud_exit();
