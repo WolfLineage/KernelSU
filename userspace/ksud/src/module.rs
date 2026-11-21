@@ -102,6 +102,10 @@ fn exec_install_script(module_file: &str, is_metamodule: bool, module_id: &str) 
     let install_script =
         metamodule::get_install_script(is_metamodule, INSTALLER_CONTENT, INSTALL_MODULE_SCRIPT)?;
 
+    // Expose the stock KSU paths only while the installer script runs, so
+    // modules checking /data/adb/ksu[d] can find the manager without leaving a
+    // persistent fingerprint behind.
+    let _legacy_aliases = LegacyAliases::create();
     let result = Command::new(assets::BUSYBOX_PATH)
         .args(["sh", "-c", &install_script])
         .envs(get_common_script_envs(Some(module_id)))
@@ -319,6 +323,13 @@ pub fn exec_script_with<T: AsRef<Path>>(
         );
     }
 
+    // Same transient compatibility window for module lifecycle scripts that
+    // are actually waited on. NoWait scripts rely on the persistent
+    // in-workspace `ksud` alias from PATH instead.
+    let _legacy_aliases = match wait {
+        ScriptWait::NoWait => None,
+        _ => Some(LegacyAliases::create()),
+    };
     let sigchld = SigchldBlock::block().context("Failed to block SIGCHLD")?;
     let original_sigmask = sigchld.previous;
     let mut command = Command::new(assets::BUSYBOX_PATH);

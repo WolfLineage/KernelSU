@@ -287,13 +287,57 @@ pub fn has_magisk() -> bool {
     which::which("magisk").is_ok()
 }
 
-fn link_ksud_to_bin() -> Result<()> {
+pub fn link_ksud_to_bin() -> Result<()> {
     let ksu_bin = PathBuf::from(defs::DAEMON_PATH);
     let ksu_bin_link = PathBuf::from(defs::DAEMON_LINK_PATH);
     if ksu_bin.exists() && !ksu_bin_link.exists() {
         std::os::unix::fs::symlink(&ksu_bin, &ksu_bin_link)?;
     }
+
+    // Compatibility alias used by third-party modules that invoke `ksud`
+    // from PATH. It lives inside the renamed working directory, so it does
+    // not expose the stock KernelSU daemon name at the /data/adb top level.
+    let compat_link = PathBuf::from(defs::BINARY_DIR).join("ksud");
+    if ksu_bin.exists() && compat_link.symlink_metadata().is_err() {
+        let _ = std::os::unix::fs::symlink(&ksu_bin, &compat_link);
+    }
     Ok(())
+}
+
+/// Temporary compatibility aliases for module scripts that still probe the
+/// stock KernelSU paths. The aliases exist only while a script is running and
+/// are removed on drop, so a user-space scan never observes them at rest.
+pub struct LegacyAliases {
+    created: Vec<PathBuf>,
+}
+
+impl LegacyAliases {
+    pub fn create() -> Self {
+        let mut created = Vec::new();
+        let pairs: [(&str, &str); 2] = [
+            ("/data/adb/ksu", defs::WORKING_DIR.trim_end_matches('/')),
+            ("/data/adb/ksud", defs::DAEMON_PATH),
+        ];
+        for (link_path, target) in pairs {
+            let link = PathBuf::from(link_path);
+            // exists() follows symlinks, so a dangling link would be missed.
+            if link.symlink_metadata().is_ok() {
+                continue;
+            }
+            if std::os::unix::fs::symlink(target, &link).is_ok() {
+                created.push(link);
+            }
+        }
+        Self { created }
+    }
+}
+
+impl Drop for LegacyAliases {
+    fn drop(&mut self) {
+        for link in &self.created {
+            let _ = remove_file(link);
+        }
+    }
 }
 
 pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> {

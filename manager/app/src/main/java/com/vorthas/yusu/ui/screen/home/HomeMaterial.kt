@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -131,11 +132,27 @@ fun HomePagerMaterial(
                 actions = actions,
             )
             InfoCard(systemInfo = state.systemInfo)
+            TelegramChannelCard(onOpenUrl = actions.onOpenUrl)
             Spacer(
                 Modifier.height(
                     bottomInnerPadding + if (!Natives.isFullFeatured())
                         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
                 )
+            )
+        }
+    }
+}
+
+@Composable
+private fun TelegramChannelCard(onOpenUrl: (String) -> Unit) {
+    val url = stringResource(R.string.home_telegram_channel_url)
+    SegmentedColumn(modifier = Modifier.fillMaxWidth()) {
+        item {
+            SegmentedListItem(
+                onClick = { onOpenUrl(url) },
+                headlineContent = { Text(stringResource(R.string.home_telegram_channel)) },
+                supportingContent = { Text(stringResource(R.string.home_telegram_channel_summary)) },
+                leadingContent = { Icon(Icons.Rounded.Send, stringResource(R.string.home_telegram_channel)) },
             )
         }
     }

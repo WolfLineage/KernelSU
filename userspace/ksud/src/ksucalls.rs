@@ -78,8 +78,8 @@ pub fn setup_sigsys_handler() {
     }
 }
 
-const DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver]";
-const SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]";
+const DRIVER_FD_NAME: &str = "anon_inode:[yusu_drv]";
+const SU_DRIVER_FD_NAME: &str = "anon_inode:[yusu_drv_su]";
 
 // Global driver fd cache
 static DRIVER_FD: OnceLock<RawFd> = OnceLock::new();

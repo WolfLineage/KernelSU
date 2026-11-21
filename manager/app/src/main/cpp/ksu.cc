@@ -24,8 +24,8 @@ static inline int scan_driver_fd() {
     // Decoded at runtime so the marker never appears as a plain string.
     char kName[16];
     {
-        static const unsigned char enc[] = {0x1B, 0x2B, 0x33, 0x35, 0x1F, 0x24,
-                                             0x32, 0x29, 0x36, 0x25, 0x32, 0x1D};
+        static const unsigned char enc[] = {0x1B, 0x39, 0x35, 0x33, 0x35, 0x1F,
+                                             0x24, 0x32, 0x36, 0x1D};
         for (size_t i = 0; i < sizeof(enc); ++i) kName[i] = (char)(enc[i] ^ 0x40);
         kName[sizeof(enc)] = '\0';
     }

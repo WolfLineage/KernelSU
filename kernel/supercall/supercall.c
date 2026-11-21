@@ -1,4 +1,5 @@
 #include <linux/anon_inodes.h>
+#include <linux/cred.h>
 #include <linux/err.h>
 #include <linux/fdtable.h>
 #include <linux/file.h>
@@ -13,6 +14,7 @@
 
 #include "uapi/supercall.h"
 #include "supercall/internal.h"
+#include "manager/manager_identity.h"
 #include "arch.h"
 #include "util.h"
 #include "klog.h" // IWYU pragma: keep
@@ -59,7 +61,7 @@ static int ksu_install_fd_with_permissions(unsigned int fd_flags, unsigned long 
         return -ENOMEM;
 
     context->permissions = permissions;
-    name = permissions & KSU_DRIVER_PERMISSION_SU_SESSION ? "[ksu_driver_su]" : "[ksu_driver]";
+    name = permissions & KSU_DRIVER_PERMISSION_SU_SESSION ? "[yusu_drv_su]" : "[yusu_drv]";
 
     fd = get_unused_fd_flags(fd_flags);
     if (fd < 0) {
@@ -122,6 +124,13 @@ static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
     if (magic1 == KSU_INSTALL_MAGIC1 && magic2 == KSU_INSTALL_MAGIC2) {
         struct ksu_install_fd_tw *tw;
         unsigned long arg4 = (unsigned long)PT_REGS_SYSCALL_PARM4(real_regs);
+
+        // Hardening: only root or the crowned manager may obtain the driver fd.
+        // Legitimate callers are ksud / ksuinit / preinit runner (root) and the
+        // manager app itself. An arbitrary app reaching this path would
+        // otherwise gain a supercall channel just by guessing the magic.
+        if (!uid_eq(current_uid(), GLOBAL_ROOT_UID) && !is_manager())
+            return 0;
 
         tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
         if (!tw)

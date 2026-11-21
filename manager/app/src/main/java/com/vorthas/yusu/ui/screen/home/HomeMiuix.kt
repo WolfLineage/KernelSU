@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -169,6 +170,10 @@ fun HomePagerMiuix(
                             systemInfo = state.systemInfo,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        TelegramChannelCard(
+                            onOpenUrl = actions.onOpenUrl,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Spacer(
                             Modifier.height(
                                 bottomInnerPadding + if (!Natives.isFullFeatured())
@@ -179,6 +184,29 @@ fun HomePagerMiuix(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TelegramChannelCard(
+    onOpenUrl: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val url = stringResource(R.string.home_telegram_channel_url)
+    Card(modifier = modifier) {
+        ArrowPreference(
+            title = stringResource(R.string.home_telegram_channel),
+            summary = stringResource(R.string.home_telegram_channel_summary),
+            startAction = {
+                Icon(
+                    imageVector = Icons.Rounded.Send,
+                    contentDescription = stringResource(R.string.home_telegram_channel),
+                    modifier = Modifier.padding(end = 6.dp),
+                    tint = colorScheme.onBackground,
+                )
+            },
+            onClick = { onOpenUrl(url) },
+        )
     }
 }
 

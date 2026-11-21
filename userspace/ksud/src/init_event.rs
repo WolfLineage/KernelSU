@@ -18,6 +18,9 @@ pub fn on_post_fs_data() -> Result<()> {
     // post-fs-data is done, so it re-reads the allowlist from the new path.
     utils::migrate_legacy_workspace();
 
+    // Self-heal the in-workspace `ksud` compatibility alias after upgrades.
+    let _ = utils::link_ksud_to_bin();
+
     ksucalls::report_post_fs_data();
 
     utils::umask(0);
