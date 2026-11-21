@@ -74,8 +74,12 @@ print_title() {
   ui_print "$bar"
 }
 
+# Resolve the daemon binary: some layouts use ksud, others keep a yusud alias.
+KSUD_BIN=/data/adb/ksud
+[ -x /data/adb/yusud ] && KSUD_BIN=/data/adb/yusud
+
 check_sepolicy() {
-    /data/adb/yusud sepolicy check "$1"
+    "$KSUD_BIN" sepolicy check "$1"
     return $?
 }
 
@@ -269,8 +273,8 @@ check_managed_features() {
     feature=$(echo "$feature" | xargs)
     [ -z "$feature" ] && continue
 
-    # Check feature status using the YuSU daemon
-    local status=$(/data/adb/yusud feature check "$feature" 2>/dev/null)
+    # Check feature status using the daemon
+    local status=$("$KSUD_BIN" feature check "$feature" 2>/dev/null)
 
     case "$status" in
       "unsupported")
