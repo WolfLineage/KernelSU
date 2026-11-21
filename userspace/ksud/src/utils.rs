@@ -287,7 +287,7 @@ pub fn has_magisk() -> bool {
     which::which("magisk").is_ok()
 }
 
-pub pub fn link_ksud_to_bin() -> Result<()> {
+pub fn link_ksud_to_bin() -> Result<()> {
     let ksu_bin = PathBuf::from(defs::DAEMON_PATH);
     let ksu_bin_link = PathBuf::from(defs::DAEMON_LINK_PATH);
     if ksu_bin.exists() && !ksu_bin_link.exists() {
