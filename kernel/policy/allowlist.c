@@ -72,8 +72,8 @@ static u16 allow_list_count = 0;
 /* YuSU fork: primary allowlist path; legacy path kept as a read fallback so
  * late-loaded devices (where the kernel reads before ksud can migrate) and
  * not-yet-migrated upgrades keep their root grants. */
-#define KERNEL_SU_ALLOWLIST "/data/adb/yusu/.allowlist"
-#define KERNEL_SU_ALLOWLIST_LEGACY "/data/adb/ksu/.allowlist"
+#define KERNEL_SU_ALLOWLIST "/data/adb/ksu/.allowlist"
+#define KERNEL_SU_ALLOWLIST_LEGACY "/data/adb/yusu/.allowlist"
 
 void ksu_persistent_allow_list(void);
 

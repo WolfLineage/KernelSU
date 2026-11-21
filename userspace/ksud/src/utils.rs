@@ -86,7 +86,7 @@ pub fn ensure_dir_exists<T: AsRef<Path>>(dir: T) -> Result<()> {
     }
 }
 
-/// YuSU fork: migrate the legacy `/data/adb/ksu` workspace to `/data/adb/yusu`.
+/// Migrate a legacy `/data/adb/yusu` workspace back to the stock `/data/adb/ksu`.
 ///
 /// Runs once at the very start of post-fs-data, before the kernel is told that
 /// post-fs-data completed (and therefore before it re-reads the allowlist from
@@ -106,9 +106,9 @@ pub fn migrate_legacy_workspace() {
     match std::fs::rename(legacy, new) {
         std::result::Result::Ok(()) => {
             let _ = restorecon::lsetfilecon(new, restorecon::KSU_CON);
-            // The whole tree moved, so the old rc file now lives at
-            // WORKING_DIR/.ksurc; rename it in place to match KSURC_PATH.
-            let old_rc = new.join(".ksurc");
+            // The legacy YuSU tree used `.yusurc`; rename it to the stock
+            // `.ksurc` after the move so KSURC_PATH keeps working.
+            let old_rc = new.join(".yusurc");
             let new_rc = Path::new(defs::KSURC_PATH);
             if old_rc.exists() && !new_rc.exists() {
                 let _ = std::fs::rename(&old_rc, new_rc);
@@ -287,40 +287,31 @@ pub fn has_magisk() -> bool {
     which::which("magisk").is_ok()
 }
 
-pub fn link_ksud_to_bin() -> Result<()> {
+pub pub fn link_ksud_to_bin() -> Result<()> {
     let ksu_bin = PathBuf::from(defs::DAEMON_PATH);
     let ksu_bin_link = PathBuf::from(defs::DAEMON_LINK_PATH);
     if ksu_bin.exists() && !ksu_bin_link.exists() {
         std::os::unix::fs::symlink(&ksu_bin, &ksu_bin_link)?;
     }
-
-    // Compatibility alias used by third-party modules that invoke `ksud`
-    // from PATH. It lives inside the renamed working directory, so it does
-    // not expose the stock KernelSU daemon name at the /data/adb top level.
-    let compat_link = PathBuf::from(defs::BINARY_DIR).join("ksud");
-    if ksu_bin.exists() && compat_link.symlink_metadata().is_err() {
-        let _ = std::os::unix::fs::symlink(&ksu_bin, &compat_link);
-    }
     Ok(())
 }
 
-/// Persistent compatibility aliases for third-party modules that probe the
-/// stock KernelSU paths. Creating these at install / boot time restores the
-/// fixed interface contract (`/data/adb/ksu`, `/data/adb/ksud`, `ksud` in PATH)
-/// that adapted modules rely on to detect the root manager.
-pub fn link_legacy_paths() -> Result<()> {
-    let pairs: [(&str, &str); 3] = [
-        ("/data/adb/ksu", defs::WORKING_DIR.trim_end_matches('/')),
-        ("/data/adb/ksud", defs::DAEMON_PATH),
-        (defs::DAEMON_PATH, defs::BINARY_DIR.trim_end_matches('/')),
-    ];
-    for (link_path, target) in pairs {
-        let link = PathBuf::from(link_path);
-        // exists() follows symlinks, so a dangling link would be missed.
-        if link.symlink_metadata().is_ok() {
-            continue;
+/// The real daemon is `/data/adb/ksud` (stock name, for module compatibility).
+/// init.rc execs `/data/adb/yusud` instead so the daemon's comm stays "yusud"
+/// and a plain /proc name scan sees YuSU, not KernelSU. This is a YuSU-owned
+/// name (not a stock KSU marker), so it does not re-expose KSU.
+pub fn link_daemon_exec_alias() -> Result<()> {
+    let real = PathBuf::from(defs::DAEMON_PATH);
+    let alias = PathBuf::from(defs::DAEMON_EXEC_ALIAS);
+    // On upgrade from the old layout, yusud is a real file (the old daemon).
+    // Replace it with a symlink to the real ksud so rc exec runs the new binary.
+    if let Ok(md) = alias.symlink_metadata() {
+        if md.file_type().is_file() {
+            let _ = remove_file(&alias);
         }
-        let _ = std::os::unix::fs::symlink(target, &link);
+    }
+    if real.exists() && alias.symlink_metadata().is_err() {
+        std::os::unix::fs::symlink(&real, &alias)?;
     }
     Ok(())
 }
@@ -339,7 +330,7 @@ pub fn install(adbh: Option<PathBuf>, data_path: Option<PathBuf>) -> Result<()> 
     assets::ensure_binaries(false).with_context(|| "Failed to extract assets")?;
 
     link_ksud_to_bin()?;
-    link_legacy_paths()?;
+    link_daemon_exec_alias()?;
 
     if let Some(adbh) = adbh {
         ensure_dir_exists(defs::LIBRARY_DIR)?;

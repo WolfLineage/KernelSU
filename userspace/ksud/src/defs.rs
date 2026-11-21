@@ -11,11 +11,12 @@ mod android {
     pub const BOOTLOG_TIMEOUT: &str = "30s";
 
     pub const ADB_DIR: &str = "/data/adb/";
-    // YuSU fork: the working directory is renamed from ksu to yusu so that
-    // /data/adb no longer exposes the stock KernelSU directory name.
-    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "yusu/");
-    // Legacy directory kept only for one-shot migration on upgrade.
-    pub const LEGACY_WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
+    // Real working directory uses the stock KSU name for maximum module
+    // compatibility. The runtime process name stays "yusud" via a dedicated
+    // exec alias (DAEMON_EXEC_ALIAS), so /proc traversal still shows YuSU.
+    pub const WORKING_DIR: &str = concatcp!(ADB_DIR, "ksu/");
+    // Legacy YuSU directory kept only for one-shot migration on upgrade.
+    pub const LEGACY_WORKING_DIR: &str = concatcp!(ADB_DIR, "yusu/");
     pub const BINARY_DIR: &str = concatcp!(WORKING_DIR, "bin/");
     pub const LIBRARY_DIR: &str = concatcp!(WORKING_DIR, "lib/");
     pub const LOG_DIR: &str = concatcp!(WORKING_DIR, "log/");
@@ -25,13 +26,15 @@ mod android {
     pub const PROFILE_SELINUX_DIR: &str = concatcp!(PROFILE_DIR, "selinux/");
     pub const PROFILE_TEMPLATE_DIR: &str = concatcp!(PROFILE_DIR, "templates/");
 
-    pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".yusurc");
-    // YuSU fork: the installed daemon is named yusud instead of ksud so that
-    // /data/adb no longer carries the stock KernelSU binary name.
-    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "yusud");
+    pub const KSURC_PATH: &str = concatcp!(WORKING_DIR, ".ksurc");
+    // Real daemon binary uses the stock name; modules calling `ksud` work.
+    pub const DAEMON_PATH: &str = concatcp!(ADB_DIR, "ksud");
+    // Exec alias: init.rc runs this path so the daemon's comm is "yusud"
+    // instead of "ksud", defeating a plain /proc name scan.
+    pub const DAEMON_EXEC_ALIAS: &str = concatcp!(ADB_DIR, "yusud");
     pub const ADBH_PATH: &str = concatcp!(LIBRARY_DIR, "libadbh.so");
 
-    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "yusud");
+    pub const DAEMON_LINK_PATH: &str = concatcp!(BINARY_DIR, "ksud");
 
     pub const MODULE_DIR: &str = concatcp!(ADB_DIR, "modules/");
     pub const MODULE_UPDATE_DIR: &str = concatcp!(ADB_DIR, "modules_update/");

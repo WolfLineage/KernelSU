@@ -21,7 +21,7 @@ pub fn on_post_fs_data() -> Result<()> {
     // Self-heal the compatibility aliases after upgrades so modules can
     // always detect the manager through the stock KSU paths.
     let _ = utils::link_ksud_to_bin();
-    let _ = utils::link_legacy_paths();
+    let _ = utils::link_daemon_exec_alias();
 
     ksucalls::report_post_fs_data();
 
