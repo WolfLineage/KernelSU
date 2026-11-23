@@ -8,6 +8,7 @@ import com.vorthas.yusu.data.filemanager.FileManagerRepository
 import com.vorthas.yusu.data.filemanager.FileViewerRepository
 import com.vorthas.yusu.ksuApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+/** Minimum time the refresh indicator stays visible so its animation can play. */
+private const val MIN_LOADING_MS = 320L
 
 class FileManagerViewModel : ViewModel() {
     private val _state = MutableStateFlow(FileManagerUiState())
@@ -45,7 +49,10 @@ class FileManagerViewModel : ViewModel() {
         val path = _state.value.panes.getOrNull(pane)?.path ?: return@launch
         // Surface feedback immediately: the pane title flips to "加载中" and the
         // progress bar under it appears while the listing runs.
-        _state.update { state -> state.withPane(pane) { it.copy(loading = true) } }
+        val startedAt = System.currentTimeMillis()
+        _state.update { state -> state.withPane(pane) {
+            it.copy(loading = true, refreshTick = it.refreshTick + 1)
+        } }
         val entries = runCatching {
             val archive = FileViewerRepository.parseArchiveVirtual(path)
             if (archive != null) {
@@ -62,6 +69,12 @@ class FileManagerViewModel : ViewModel() {
             FileSortMode.SIZE -> entries.sortedWith(compareBy({ !it.isDirectory }, { -it.size }))
             FileSortMode.DATE -> entries.sortedWith(compareBy({ !it.isDirectory }, { -it.lastModified }))
         }
+        // Local directory listings finish in a few milliseconds. Without a minimum
+        // visible window the loading animation never actually renders — the user only
+        // sees a flicker. Hold the loading state for at least MIN_LOADING_MS so the
+        // progress bar can fade in/out smoothly, like MT Manager's refresh feedback.
+        val elapsed = System.currentTimeMillis() - startedAt
+        if (elapsed < MIN_LOADING_MS) delay(MIN_LOADING_MS - elapsed)
         _state.update { state -> state.withPane(pane) { it.copy(entries = sorted, loading = false) } }
     }
 

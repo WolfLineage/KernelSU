@@ -8,6 +8,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -670,9 +672,16 @@ internal fun PaneMaterial(
                 trackColor = toolSurfaceColor(),
             )
         }
+        // While refreshing, dim the listing and fade it back in when the new
+        // entries arrive — a visible MT-style transition instead of an instant swap.
+        val listAlpha by animateFloatAsState(
+            targetValue = if (pane.loading) 0.35f else 1f,
+            animationSpec = tween(220),
+            label = "pane_list_alpha",
+        )
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = listAlpha },
         ) {
             if (pane.path != "/") {
                 item(key = "__parent__") {

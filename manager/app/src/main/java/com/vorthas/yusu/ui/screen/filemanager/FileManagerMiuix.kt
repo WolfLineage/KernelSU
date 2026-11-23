@@ -95,21 +95,6 @@ internal fun FileManagerScreenMiuix(
                 .padding(bottom = if (bottomPadding == Dp.Unspecified) 0.dp else bottomPadding)
                 .fillMaxSize(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val chosen = state.panes.getOrNull(state.activePane)?.selected?.size ?: 0
-                if (chosen > 0) {
-                    Text(
-                        "已选 $chosen",
-                        fontSize = 11.sp,
-                        color = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
-            }
             BoxWithConstraints(modifier = Modifier.weight(1f)) {
                 val compact = maxWidth < 600.dp
                 Row(modifier = Modifier.fillMaxSize()) {

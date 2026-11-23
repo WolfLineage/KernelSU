@@ -17,6 +17,7 @@ data class PaneUiState(
     val selected: Set<String> = emptySet(),
     val loading: Boolean = true,
     val sort: FileSortMode = FileSortMode.NAME,
+    val refreshTick: Int = 0,
 )
 
 data class FileManagerUiState(
