@@ -163,6 +163,21 @@ void apply_kernelsu_rules()
     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "getpgid");
     ksu_allow(db, "system_server", KERNEL_SU_DOMAIN, "process", "sigkill");
 
+    // Suppress AVC audit records that disclose the manager to userland.
+    // Without these, SELinux emits "avc: denied ... tcontext=u:r:ksu:s0" /
+    // "u:object_r:ksu_file:s0" / "scontext=u:r:ksu:s0 permissive=1" into
+    // dmesg and logd, which a shell or any log reader can use to detect YuSU.
+    // dontaudit only clears AVTAB_AUDITDENY bits; it never changes an allow
+    // decision, so root functionality and sucompat are unaffected. The three
+    // directions cover every decision that can carry a KSU identifier:
+    //   1) any domain denied on a ksu_file object (/data/adb/ksu, modules, ...)
+    //   2) any domain denied on the ksu process domain (getattr/signal/binder)
+    //   3) the permissive ksu domain itself denied on any target
+    //      (would carry scontext=u:r:ksu:s0 permissive=1)
+    ksu_dontaudit(db, "domain", KERNEL_SU_FILE, ALL, ALL);
+    ksu_dontaudit(db, "domain", KERNEL_SU_DOMAIN, ALL, ALL);
+    ksu_dontaudit(db, KERNEL_SU_DOMAIN, ALL, ALL, ALL);
+
     rcu_assign_pointer(selinux_state.policy, pol);
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
