@@ -49,6 +49,10 @@ sealed interface Route : NavKey, Parcelable {
 
     @Parcelize
     @Serializable
+    data object Susfs : Route
+
+    @Parcelize
+    @Serializable
     data object ColorPalette : Route
 
     @Parcelize
@@ -100,5 +104,5 @@ sealed interface Route : NavKey, Parcelable {
 
     @Parcelize
     @Serializable
-    data class TextEditor(val path: String) : Route
+    data class TextEditor(val path: String, val openAs: String? = null, val displayName: String? = null) : Route
 }

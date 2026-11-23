@@ -10,6 +10,9 @@ import org.apache.commons.compress.archivers.ArchiveInputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import java.io.BufferedInputStream
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.util.Locale
 
 /** A single row in a file-manager pane. */
 data class FileEntry(
@@ -19,10 +22,63 @@ data class FileEntry(
     val size: Long,
     val lastModified: Long,
     val mode: String,
-)
+    /** Raw symlink target (`ls -l` right-hand side) when this entry is a link. */
+    val linkTarget: String? = null,
+) {
+    val isLink: Boolean get() = linkTarget != null
+}
 
 /** Result of an archive extraction, with the number of files written. */
 data class ExtractResult(val files: Int, val skipped: Int)
+
+/**
+ * Content kind used to select a safe viewer. Sniffed from header bytes first; the file
+ * name is only a fallback hint. Binary/archive files must never be handed to a text
+ * field: replacing their NUL bytes produces millions of U+FFFD chars and Compose text
+ * layout then blocks the main thread indefinitely.
+ */
+enum class FileKind {
+    TEXT, ARCHIVE, ELF, DEX, IMAGE, PDF, SQLITE, BINARY,
+}
+
+/** One bounded read. Holds at most `bytes.size` bytes in memory. */
+data class FilePage(
+    val offset: Long,
+    val totalBytes: Long,
+    val bytes: ByteArray,
+    val text: String,
+    val kind: FileKind,
+) {
+    val atEnd: Boolean get() = offset + bytes.size >= totalBytes
+
+    /** 16 bytes per row with an ASCII column; built only for binary pages. */
+    fun hexDump(): String = buildString(bytes.size * 4) {
+        for (rowStart in bytes.indices step 16) {
+            append(String.format(Locale.ROOT, "%08X  ", offset + rowStart))
+            for (i in 0 until 16) {
+                val index = rowStart + i
+                if (index < bytes.size) {
+                    append(String.format(Locale.ROOT, "%02X", bytes[index].toInt() and 0xFF))
+                } else {
+                    append("  ")
+                }
+                append(' ')
+                if (i == 7) append(' ')
+            }
+            append(" |")
+            for (i in 0 until 16) {
+                val index = rowStart + i
+                if (index < bytes.size) {
+                    val value = bytes[index].toInt() and 0xFF
+                    append(if (value in 0x20..0x7E) value.toChar() else '.')
+                } else {
+                    append(' ')
+                }
+            }
+            append("|\n")
+        }
+    }
+}
 
 /**
  * Root-aware file operations for the built-in file manager.
@@ -70,6 +126,44 @@ object FileManagerRepository {
         return if (slash <= 0) "/" else normalized.substring(0, slash)
     }
 
+    /** Raw `readlink` target, or null when [path] is not a symlink. */
+    fun readLink(path: String): String? = runCatching {
+        exec("readlink -- ${path.shellQuote()}").out.firstOrNull()?.trim()?.ifBlank { null }
+    }.getOrDefault(null)
+
+    /** Lexically resolve `.`/`..` without touching the filesystem. */
+    private fun normalizePath(path: String): String {
+        val absolute = path.startsWith("/")
+        val parts = mutableListOf<String>()
+        for (part in path.split('/')) {
+            when (part) {
+                "", "." -> Unit
+                ".." -> if (parts.isNotEmpty() && parts.last() != "..") {
+                    parts.removeAt(parts.lastIndex)
+                } else if (!absolute) {
+                    parts.add("..")
+                }
+                else -> parts.add(part)
+            }
+        }
+        return (if (absolute) "/" else "") + parts.joinToString("/")
+    }
+
+    /**
+     * Follow a symlink chain to its final path. Relative targets are resolved against the
+     * link's parent directory. Bounded depth protects against link loops.
+     */
+    fun resolveLink(path: String, maxDepth: Int = 16): String {
+        var current = path
+        repeat(maxDepth) {
+            val target = readLink(current) ?: return normalizePath(current)
+            current = if (target.startsWith("/")) target
+            else parent(current).trimEnd('/') + "/" + target
+            current = normalizePath(current)
+        }
+        return current
+    }
+
     /**
      * Run a command on the file-manager shell.
      *
@@ -115,11 +209,16 @@ object FileManagerRepository {
     private fun parseLsLine(line: String, directory: String): FileEntry? {
         val match = lsLineRegex.find(line) ?: return null
         val (perms, links, owner, group, size, date, time, tail) = match.destructured
-        // Symlinks render as "name -> target"; keep the link name only.
-        val rawName = tail.substringBefore(" -> ").trim()
+        // Symlinks render as "name -> target"; keep both the link name and its target.
+        val separator = " -> "
+        val isLink = perms.startsWith('l')
+        val rawName = tail.substringBefore(separator).trim()
         if (rawName.isEmpty()) return null
         val name = rawName.trimEnd('/')
         if (name.isEmpty() || name == "." || name == "..") return null
+        val linkTarget = if (isLink && tail.contains(separator)) {
+            tail.substringAfter(separator).trim().ifBlank { null }
+        } else null
         val isDir = perms.startsWith('d') || rawName.endsWith('/')
         return FileEntry(
             path = directory.trimEnd('/') + "/" + name,
@@ -128,6 +227,7 @@ object FileManagerRepository {
             size = if (isDir) 0L else size.toLongOrNull() ?: 0L,
             lastModified = parseLsDate(date, time),
             mode = perms,
+            linkTarget = linkTarget,
         )
     }
 
@@ -152,6 +252,7 @@ object FileManagerRepository {
                     size = if (file.isDirectory) 0L else runCatching { file.length() }.getOrDefault(0L),
                     lastModified = runCatching { file.lastModified() }.getOrDefault(0L),
                     mode = runCatching { modeOf(file) }.getOrDefault("----"),
+                    linkTarget = readLink(file.path),
                 )
             }
             .sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
@@ -242,6 +343,9 @@ object FileManagerRepository {
         val versionCode: Long,
     )
 
+    /** Open a root-aware stream for callers that need to parse a file incrementally. */
+    fun openStream(path: String): java.io.InputStream = SuFileInputStream.open(rootFile(path))
+
     fun exists(path: String): Boolean = runCatching { rootFile(path).exists() }.getOrDefault(false)
 
     fun isDirectory(path: String): Boolean = runCatching { rootFile(path).isDirectory }.getOrDefault(false)
@@ -266,6 +370,125 @@ object FileManagerRepository {
             }
             buffer.copyOf(read)
         }
+
+    private fun ByteArray.prefix(vararg values: Int): Boolean =
+        size >= values.size && values.indices.all { this[it].toInt() and 0xFF == values[it] }
+
+    private fun ByteArray.ascii(value: String): Boolean =
+        size >= value.length && value.indices.all { this[it].toInt().toChar() == value[it] }
+
+    /**
+     * Identify the real content type from an 8 KB header (extension is only a hint).
+     * Mirrors the reference tool's `SmartFileOpener`: binary and archive files are
+     * routed to a hex/chunk viewer instead of the whole-file text editor.
+     */
+    fun sniff(path: String): FileKind {
+        val head = runCatching { readHeader(path, 8 * 1024) }.getOrDefault(ByteArray(0))
+        val byMagic = when {
+            head.prefix(0x50, 0x4B, 0x03, 0x04) || head.prefix(0x50, 0x4B, 0x05, 0x06) ||
+                head.prefix(0x50, 0x4B, 0x07, 0x08) || head.prefix(0x1F, 0x8B) ||
+                head.prefix(0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) ||
+                head.prefix(0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C) ||
+                head.prefix(0x52, 0x61, 0x72, 0x21) -> FileKind.ARCHIVE
+            head.prefix(0x7F, 0x45, 0x4C, 0x46) -> FileKind.ELF
+            head.ascii("dex\n") -> FileKind.DEX
+            head.prefix(0x89, 0x50, 0x4E, 0x47) || head.prefix(0xFF, 0xD8, 0xFF) ||
+                head.ascii("GIF8") || head.ascii("BM") ||
+                (head.ascii("RIFF") && head.size >= 12 && head.asciiAt(8, "WEBP")) -> FileKind.IMAGE
+            head.ascii("%PDF") -> FileKind.PDF
+            head.ascii("SQLite format 3") -> FileKind.SQLITE
+            head.prefix(0xFF, 0xFE) || head.prefix(0xFE, 0xFF) ||
+                head.prefix(0xEF, 0xBB, 0xBF) -> FileKind.TEXT
+            else -> null
+        }
+        if (byMagic != null) return byMagic
+
+        val name = path.substringAfterLast('/').lowercase()
+        val byName = when {
+            listOf("zip", "apk", "apks", "jar", "aar", "war", "tar", "gz", "tgz", "xz", "7z", "rar")
+                .any { name.endsWith(".$it") } -> FileKind.ARCHIVE
+            listOf("so", "o", "elf").any { name.endsWith(".$it") } -> FileKind.ELF
+            name.endsWith(".dex") -> FileKind.DEX
+            listOf("png", "jpg", "jpeg", "gif", "webp", "bmp").any { name.endsWith(".$it") } -> FileKind.IMAGE
+            name.endsWith(".pdf") -> FileKind.PDF
+            listOf("db", "sqlite", "sqlite3").any { name.endsWith(".$it") } -> FileKind.SQLITE
+            else -> null
+        }
+        if (byName != null) return byName
+
+        // NUL / C0 controls (excluding tab, LF, CR, FF) are a reliable binary signal.
+        var suspicious = 0
+        for (byte in head) {
+            val value = byte.toInt() and 0xFF
+            if (value == 0 || (value < 0x20 && value !in intArrayOf(9, 10, 12, 13))) suspicious++
+        }
+        return if (head.isNotEmpty() && suspicious * 20 > head.size) FileKind.BINARY else FileKind.TEXT
+    }
+
+    private fun ByteArray.asciiAt(index: Int, value: String): Boolean =
+        size >= index + value.length && value.indices.all { this[index + it].toInt().toChar() == value[it] }
+
+    private fun sanitizeText(text: String): String {
+        val needsWork = text.any {
+            (it.code < 0x20 && it != '\n' && it != '\r' && it != '\t') || it.code == 0x7F
+        }
+        if (!needsWork) return text
+        val result = StringBuilder(text.length)
+        for (char in text) {
+            result.append(
+                if ((char.code < 0x20 && char != '\n' && char != '\r' && char != '\t') || char.code == 0x7F) {
+                    '\uFFFD'
+                } else {
+                    char
+                }
+            )
+        }
+        return result.toString()
+    }
+
+    private fun decodePageText(bytes: ByteArray): String {
+        if (bytes.isEmpty()) return ""
+        val (charset, skip) = when {
+            bytes.prefix(0xEF, 0xBB, 0xBF) -> Charsets.UTF_8 to 3
+            bytes.prefix(0xFF, 0xFE) -> Charsets.UTF_16LE to 2
+            bytes.prefix(0xFE, 0xFF) -> Charsets.UTF_16BE to 2
+            else -> Charsets.UTF_8 to 0
+        }
+        val decoder = charset.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPLACE)
+            .onUnmappableCharacter(CodingErrorAction.REPLACE)
+        return sanitizeText(decoder.decode(ByteBuffer.wrap(bytes, skip, bytes.size - skip)).toString())
+    }
+
+    /**
+     * Read a single bounded window at [offset] (64 KiB at most in practice). Never reads
+     * the whole file, so binary blobs and GB-sized logs cannot stall text layout. The
+     * libsu stream is a pipe, so random access is implemented by bounded skip reads.
+     */
+    fun readPage(path: String, offset: Long, maxBytes: Int, kind: FileKind): FilePage {
+        val total = fileSize(path)
+        val start = offset.coerceAtLeast(0L).coerceAtMost(maxOf(0L, total - 1))
+        val bytes = SuFileInputStream.open(rootFile(path)).buffered().use { input ->
+            var skipped = 0L
+            val scratch = ByteArray(16 * 1024)
+            while (skipped < start) {
+                val want = minOf(scratch.size.toLong(), start - skipped).toInt()
+                val count = input.read(scratch, 0, want)
+                if (count <= 0) break
+                skipped += count
+            }
+            val want = minOf(maxBytes.toLong(), maxOf(0L, total - skipped)).toInt()
+            val buffer = ByteArray(want)
+            var read = 0
+            while (read < want) {
+                val count = input.read(buffer, read, want - read)
+                if (count <= 0) break
+                read += count
+            }
+            buffer.copyOf(read)
+        }
+        return FilePage(start, total, bytes, if (kind == FileKind.TEXT) decodePageText(bytes) else "", kind)
+    }
 
     fun readText(path: String): String =
         SuFileInputStream.open(rootFile(path)).bufferedReader(Charsets.UTF_8).use { it.readText() }

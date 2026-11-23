@@ -15,21 +15,9 @@ extra["androidTargetCompatibility"] = JavaVersion.VERSION_21
 extra["managerVersionCode"] = getVersionCode()
 extra["managerVersionName"] = getVersionName()
 
-fun getGitCommitCount(): Int {
-    val process = Runtime.getRuntime().exec(arrayOf("git", "rev-list", "--count", "HEAD"))
-    return process.inputStream.bufferedReader().use { it.readText().trim().toInt() }
-}
+// Semantic version 3.4.0 -> 30400. A fixed, meaningful code (instead of
+// 30000 + git commit count) keeps the bundled-LKM version check stable: an
+// unrelated commit must not make the manager think a new LKM is available.
+fun getVersionCode(): Int = 30400
 
-fun getGitDescribe(): String {
-    val process = Runtime.getRuntime().exec(arrayOf("git", "describe", "--tags", "--always"))
-    return process.inputStream.bufferedReader().use { it.readText().trim() }
-}
-
-fun getVersionCode(): Int {
-    val commitCount = getGitCommitCount()
-    return 30000 + commitCount
-}
-
-fun getVersionName(): String {
-    return getGitDescribe()
-}
+fun getVersionName(): String = "3.4.0"

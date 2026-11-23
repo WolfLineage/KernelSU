@@ -1,5 +1,11 @@
 package com.vorthas.yusu.ui.screen.filemanager
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +19,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -63,16 +73,19 @@ internal fun FileManagerScreenMiuix(
 
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier.statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.file_manager),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MiuixTheme.colorScheme.onBackground,
-                )
-            }
+            // Same Miuix TopAppBar component other pages use, so title size/position match.
+            TopAppBar(
+                color = MiuixTheme.colorScheme.surface,
+                title = stringResource(R.string.file_manager),
+                actions = {
+                    IconButton(onClick = actions.onShowBookmarks) {
+                        Icon(Icons.Filled.Bookmark, contentDescription = "书签", tint = MiuixTheme.colorScheme.onBackground)
+                    }
+                    IconButton(onClick = { searchOpen = true }) {
+                        Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = MiuixTheme.colorScheme.onBackground)
+                    }
+                },
+            )
         },
         popupHost = {},
     ) { padding ->
@@ -87,13 +100,6 @@ internal fun FileManagerScreenMiuix(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TopTool("←", state.canBack.getOrNull(state.activePane) == true) {
-                    actions.onPaneBack(state.activePane)
-                }
-                TopTool("→", state.canForward.getOrNull(state.activePane) == true) {
-                    actions.onPaneForward(state.activePane)
-                }
-                TopTool("⇄", true, actions.onSwap)
                 val chosen = state.panes.getOrNull(state.activePane)?.selected?.size ?: 0
                 if (chosen > 0) {
                     Text(
@@ -108,12 +114,51 @@ internal fun FileManagerScreenMiuix(
                 val compact = maxWidth < 600.dp
                 Row(modifier = Modifier.fillMaxSize()) {
                     PaneMaterial(state, actions, 0, Modifier.weight(1f), compact, onRunScript)
-                    HorizontalDivider(Modifier.width(1.dp).fillMaxHeight())
+                    // Full-height 1dp rule with low alpha: separates panes without
+                    // the tiny-dot artifact of a narrowed HorizontalDivider.
+                    Box(
+                        Modifier.width(1.dp).fillMaxHeight()
+                            .background(MiuixTheme.colorScheme.onBackground.copy(alpha = 0.08f))
+                    )
                     PaneMaterial(state, actions, 1, Modifier.weight(1f), compact, onRunScript)
                 }
             }
             ActionBarMaterial(state, actions, showDialog = { dialog = it }, onSearch = { searchOpen = true })
         }
+    }
+
+    if (state.bookmarksOpen) {
+        AlertDialog(
+            onDismissRequest = {},
+            containerColor = dialogSurface(),
+            titleContentColor = dialogText(),
+            textContentColor = dialogText(),
+            title = { Text("书签") },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    if (state.bookmarkPaths.isEmpty()) {
+                        Text("暂无书签。长按目录或文件可添加。", color = dialogText())
+                    } else {
+                        state.bookmarkPaths.forEach { path ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    actions.onNavigateBookmark(path)
+                                    actions.onHideBookmarks()
+                                }.padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Filled.Bookmark, null,
+                                    tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(path, color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = actions.onHideBookmarks) { Text("关闭") } },
+        )
     }
 
     if (searchOpen) {

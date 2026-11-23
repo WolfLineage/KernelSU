@@ -139,6 +139,19 @@ fun SettingPagerMiuix(
                                 checked = uiState.checkModuleUpdate,
                                 onCheckedChange = actions.onSetCheckModuleUpdate
                             )
+                            ArrowPreference(
+                                title = stringResource(id = R.string.settings_susfs),
+                                summary = stringResource(id = R.string.settings_susfs_summary),
+                                startAction = {
+                                    Icon(
+                                        Icons.Rounded.Security,
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        contentDescription = stringResource(id = R.string.settings_susfs),
+                                        tint = colorScheme.onBackground
+                                    )
+                                },
+                                onClick = actions.onOpenSusfs
+                            )
                         }
                     }
 

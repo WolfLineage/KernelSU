@@ -194,6 +194,18 @@ internal fun InstallScreenMiuix(
                             .fillMaxWidth()
                             .padding(top = 12.dp),
                     ) {
+                        CheckboxPreference(
+                            title = stringResource(id = R.string.install_susfs_integration),
+                            summary = stringResource(id = R.string.install_susfs_integration_summary),
+                            checked = uiState.susfsIntegration,
+                            onCheckedChange = actions.onSelectSusfsIntegration,
+                        )
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                    ) {
                         BasicComponent(
                             title = stringResource(id = R.string.install_upload_lkm_file),
                             summary = (uiState.lkmSelection as? LkmSelection.LkmUri)?.let {

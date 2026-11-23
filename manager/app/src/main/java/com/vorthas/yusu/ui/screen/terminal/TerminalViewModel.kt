@@ -145,7 +145,12 @@ class TerminalViewModel : ViewModel() {
     }
 
     fun clear() {
-        activeSession()?.emulator?.write("\u001B[2J\u001B[H".toByteArray(Charsets.UTF_8))
+        val session = activeSession() ?: return
+        // Clear locally for instant feedback, then ask the shell to redraw its prompt.
+        // Clearing only the emulator leaves a blank screen because the shell never
+        // knows it needs to print PS1 again (the old behaviour users complained about).
+        session.emulator.write("\u001B[2J\u001B[H".toByteArray(Charsets.UTF_8))
+        if (session.handle != 0L) Pty.send(session.handle, "\u000C") // Ctrl+L: readline redraw
     }
 
     fun resize(columns: Int, rows: Int) {

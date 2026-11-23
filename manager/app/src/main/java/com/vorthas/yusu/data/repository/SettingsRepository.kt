@@ -63,6 +63,8 @@ interface SettingsRepository {
 
     fun isUsbDebuggingEnabled(): Boolean
     fun setUsbDebuggingEnabled(enabled: Boolean): Boolean
+    /** True only after the user explicitly toggled the switch at least once. */
+    fun hasUsbDebuggingPreference(): Boolean
 
     fun isDefaultUmountModules(): Boolean
     fun setDefaultUmountModules(enabled: Boolean): Boolean

@@ -426,4 +426,73 @@
     <string name="fm_run_script">执行脚本</string>
     <string name="fm_run_root">以 Root 执行</string>
     <string name="fm_run_shell">以普通权限执行</string>
+
+    <!-- 原生 SuSFS LKM 集成 -->
+    <string name="settings_susfs">SuSFS for LKM</string>
+    <string name="settings_susfs_summary">内置 SuSFS 守护 LKM 与隐藏配置</string>
+    <string name="susfs_title">SuSFS for LKM</string>
+    <string name="susfs_section_status">状态</string>
+    <string name="susfs_section_actions">操作</string>
+    <string name="susfs_section_toggles">开关</string>
+    <string name="susfs_status_loading">正在检测 SuSFS 状态…</string>
+    <string name="susfs_status_not_installed">未安装</string>
+    <string name="susfs_status_active">已激活</string>
+    <string name="susfs_status_inactive">未激活</string>
+    <string name="susfs_status_summary">%1$s · KMI %2$s · 版本 %3$s · 变体 %4$s · %5$d 项特性</string>
+    <string name="susfs_builtin_kernel">内核内置</string>
+    <string name="susfs_lkm_mode">守护 LKM</string>
+    <string name="susfs_refresh">刷新状态</string>
+    <string name="susfs_load_lkm">立即加载 SuSFS LKM</string>
+    <string name="susfs_load_lkm_summary">手动加载当前 KMI 对应的内置守护模块</string>
+    <string name="susfs_apply_now">立即应用配置</string>
+    <string name="susfs_apply_now_summary">无需重启，立即生效</string>
+    <string name="susfs_reset_configs">恢复默认配置</string>
+    <string name="susfs_hide_mounts">对非 root 进程隐藏可疑挂载</string>
+    <string name="susfs_hide_mounts_summary">HIDE_SUS_MNTS_NON_SU</string>
+    <string name="susfs_logging">开启 SuSFS 内核日志</string>
+    <string name="susfs_avc_spoof">在 AVC 日志中伪装 su 上下文</string>
+    <string name="susfs_footer">配置保存在 /data/adb/ksu/susfs/config。修改后点击“立即应用配置”即可。</string>
+
+    <string name="install_susfs_integration">集成 SuSFS</string>
+    <string name="install_susfs_integration_summary">修补时一并内置 SuSFS 守护 LKM 与隐藏引擎</string>
+
+    <string name="susfs_status_not_integrated">未集成 SuSFS</string>
+    <string name="susfs_save_apply">保存并应用</string>
+    <string name="susfs_section_rules">全部配置文件</string>
+    <string name="susfs_section_rules_summary">%1$d 个文件，可直接编辑</string>
+    <string name="susfs_section_scripts">内置脚本</string>
+    <string name="susfs_section_scripts_summary">已启用 %1$d / %2$d</string>
+    <string name="susfs_script_postfs">在 post-fs-data 阶段运行</string>
+    <string name="susfs_script_boot">在开机完成阶段运行</string>
+
+    <string name="susfs_cfg_core">核心开关</string>
+    <string name="susfs_cfg_uname">内核版本伪装</string>
+    <string name="susfs_cfg_paths">静态隐藏路径</string>
+    <string name="susfs_cfg_paths_loop">动态隐藏路径</string>
+    <string name="susfs_cfg_maps">内存映射隐藏</string>
+    <string name="susfs_cfg_kstat">文件状态伪装</string>
+    <string name="susfs_cfg_redirect">路径重定向</string>
+    <string name="susfs_cfg_cmdline">启动参数伪装</string>
+    <string name="susfs_script_cmdline">启动参数伪装</string>
+    <string name="susfs_script_cmdline_desc">隐藏解锁状态与 bootloader 标记</string>
+    <string name="susfs_script_kstat">文件状态伪装</string>
+    <string name="susfs_script_kstat_desc">伪装 hosts 等文件的 inode 与大小</string>
+    <string name="susfs_script_ksu">KernelSU 隐藏设置</string>
+    <string name="susfs_script_ksu_desc">关闭 shell su，开启 SELinux 隐藏</string>
+    <string name="susfs_script_uname">内核版本伪装</string>
+    <string name="susfs_script_uname_desc">将 uname 输出替换为类原厂值</string>
+    <string name="susfs_script_mount">模块挂载隐藏</string>
+    <string name="susfs_script_mount_desc">对非 root 进程隐藏模块挂载</string>
+    <string name="susfs_script_props">系统属性伪装</string>
+    <string name="susfs_script_props_desc">移除自定义 ROM 指纹与调试属性</string>
+    <string name="susfs_script_settings">开发者设置伪装</string>
+    <string name="susfs_script_settings_desc">隐藏 USB 调试与开发者选项</string>
+    <string name="susfs_script_maps">内存映射隐藏</string>
+    <string name="susfs_script_maps_desc">隐藏模块库与字体文件的映射记录</string>
+    <string name="susfs_script_tools">工具路径隐藏</string>
+    <string name="susfs_script_tools_desc">动态隐藏 recovery 与管理器工具路径</string>
+    <string name="susfs_script_rom">ROM 痕迹隐藏</string>
+    <string name="susfs_script_rom_desc">隐藏自定义 ROM 文件与 addon.d 路径</string>
+    <string name="susfs_script_markers">检测标记清理</string>
+    <string name="susfs_script_markers_desc">删除共享存储中的 SuSFS 残留标记</string>
 </resources>

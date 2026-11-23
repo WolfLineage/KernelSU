@@ -90,6 +90,7 @@ import com.vorthas.yusu.ui.screen.modulerepo.ModuleRepoScreen
 import com.vorthas.yusu.ui.screen.scriptrun.ScriptRunScreen
 import com.vorthas.yusu.ui.screen.settings.SettingPager
 import com.vorthas.yusu.ui.screen.sulog.SulogScreen
+import com.vorthas.yusu.ui.screen.susfs.SusfsScreen
 import com.vorthas.yusu.ui.screen.superuser.SuperUserPager
 import com.vorthas.yusu.ui.screen.terminal.TerminalPage
 import com.vorthas.yusu.ui.screen.template.AppProfileTemplateScreen
@@ -245,6 +246,7 @@ class MainActivity : ComponentActivity() {
                             entry<Route.Main>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.About>(swipeDismiss = swipeDismiss) { AboutScreen() }
                             entry<Route.Sulog>(swipeDismiss = swipeDismiss) { SulogScreen() }
+                            entry<Route.Susfs>(swipeDismiss = swipeDismiss) { SusfsScreen() }
                             entry<Route.ColorPalette>(swipeDismiss = swipeDismiss) { ColorPaletteScreen() }
                             entry<Route.AppProfileTemplate>(swipeDismiss = swipeDismiss) { AppProfileTemplateScreen() }
                             entry<Route.TemplateEditor>(swipeDismiss = swipeDismiss) { key -> TemplateEditorScreen(key.template, key.readOnly) }
@@ -276,7 +278,7 @@ class MainActivity : ComponentActivity() {
                             }
                             entry<Route.FileManager>(swipeDismiss = swipeDismiss) { FileManagerScreen() }
                             entry<Route.Terminal>(swipeDismiss = swipeDismiss) { key -> TerminalPage(key.path) }
-                            entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key -> TextEditorPage(key.path) }
+                            entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key -> TextEditorPage(key.path, key.openAs, key.displayName) }
                             entry<Route.Home>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.SuperUser>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.Module>(swipeDismiss = swipeDismiss) { mainScreenEntry() }

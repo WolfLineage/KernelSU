@@ -30,6 +30,8 @@ data class FileManagerUiState(
     val canBack: List<Boolean> = listOf(false, false),
     val canForward: List<Boolean> = listOf(false, false),
     val message: String? = null,
+    val bookmarkPaths: List<String> = emptyList(),
+    val bookmarksOpen: Boolean = false,
 )
 
 data class FileManagerActions(
@@ -63,4 +65,8 @@ data class FileManagerActions(
     val onOpenTerminal: () -> Unit,
     val onInstallApk: (String) -> Unit,
     val onMessageShown: () -> Unit,
+    val onToggleBookmark: (String) -> Unit = {},
+    val onShowBookmarks: () -> Unit = {},
+    val onHideBookmarks: () -> Unit = {},
+    val onNavigateBookmark: (String) -> Unit = {},
 )

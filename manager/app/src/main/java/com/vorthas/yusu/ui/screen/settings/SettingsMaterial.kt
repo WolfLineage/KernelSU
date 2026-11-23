@@ -107,6 +107,18 @@ fun SettingPagerMaterial(
                                 checked = uiState.checkModuleUpdate,
                                 onCheckedChange = actions.onSetCheckModuleUpdate
                             )
+                        },
+                        {
+                            val susfs = stringResource(id = R.string.settings_susfs)
+                            SegmentedListItem(
+                                onClick = actions.onOpenSusfs,
+                                headlineContent = { Text(susfs) },
+                                supportingContent = { Text(stringResource(id = R.string.settings_susfs_summary)) },
+                                leadingContent = { Icon(Icons.Filled.Security, susfs) },
+                                trailingContent = {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
+                                }
+                            )
                         }
                     )
                 )

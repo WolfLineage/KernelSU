@@ -29,12 +29,14 @@ fun isSoftRebootPreferred(): Boolean =
         .getBoolean(KEY_USE_SOFT_REBOOT, false)
 
 /**
- * Applies the persisted USB debugging choice during boot. The preference
- * defaults to false, so a device that has never used the switch boots with
- * USB debugging turned off.
+ * Applies the persisted USB debugging choice during boot — but only when the user has
+ * explicitly toggled the switch. The old behaviour always wrote `adb_enabled 0` on a fresh
+ * install (default false), which silently killed ADB on every app start and made the device
+ * unreachable. Leaving an untouched preference alone preserves whatever the user configured.
  */
 fun applyUsbDebuggingPreference() {
     val repo = SettingsRepositoryImpl()
+    if (!repo.hasUsbDebuggingPreference()) return
     val value = if (repo.isUsbDebuggingEnabled()) 1 else 0
     runCatching { Shell.cmd("settings put global adb_enabled $value").exec() }
 }
@@ -128,6 +130,8 @@ class SettingsRepositoryImpl : SettingsRepository {
 
     override fun isUsbDebuggingEnabled(): Boolean =
         prefs.getBoolean("usb_debugging_enabled", false)
+
+    override fun hasUsbDebuggingPreference(): Boolean = prefs.contains("usb_debugging_enabled")
 
     override fun setUsbDebuggingEnabled(enabled: Boolean): Boolean {
         val value = if (enabled) 1 else 0

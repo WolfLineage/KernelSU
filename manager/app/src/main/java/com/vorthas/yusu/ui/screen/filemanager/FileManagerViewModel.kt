@@ -2,7 +2,11 @@ package com.vorthas.yusu.ui.screen.filemanager
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vorthas.yusu.data.filemanager.BookmarkRepository
+import com.vorthas.yusu.data.filemanager.FileEntry
 import com.vorthas.yusu.data.filemanager.FileManagerRepository
+import com.vorthas.yusu.data.filemanager.FileViewerRepository
+import com.vorthas.yusu.ksuApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,18 +22,38 @@ class FileManagerViewModel : ViewModel() {
 
     private val backStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
     private val forwardStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
+    private val bookmarks = BookmarkRepository(ksuApp)
 
     init {
         refresh(0)
         refresh(1)
     }
 
+    /** MT-style bookmarks: toggle, list and navigate. */
+    fun toggleBookmark(path: String) {
+        bookmarks.toggle(path)
+        _state.update { it.copy(bookmarkPaths = bookmarks.all()) }
+    }
+
+    fun isBookmarked(path: String): Boolean = path in bookmarks.all()
+
+    fun showBookmarks() = _state.update { it.copy(bookmarkPaths = bookmarks.all(), bookmarksOpen = true) }
+
+    fun hideBookmarks() = _state.update { it.copy(bookmarksOpen = false) }
+
     fun refresh(pane: Int) = viewModelScope.launch(Dispatchers.IO) {
         val path = _state.value.panes.getOrNull(pane)?.path ?: return@launch
         // Surface feedback immediately: the pane title flips to "加载中" and the
         // progress bar under it appears while the listing runs.
         _state.update { state -> state.withPane(pane) { it.copy(loading = true) } }
-        val entries = runCatching { FileManagerRepository.list(path) }
+        val entries = runCatching {
+            val archive = FileViewerRepository.parseArchiveVirtual(path)
+            if (archive != null) {
+                listArchivePane(archive.first, archive.second)
+            } else {
+                FileManagerRepository.list(path)
+            }
+        }
             .onFailure { FileManagerRepository.logFailure("list $path", it) }
             .getOrDefault(emptyList())
         val sort = _state.value.panes.getOrNull(pane)?.sort ?: FileSortMode.NAME
@@ -40,6 +64,51 @@ class FileManagerViewModel : ViewModel() {
         }
         _state.update { state -> state.withPane(pane) { it.copy(entries = sorted, loading = false) } }
     }
+
+    /**
+     * List immediate children of a directory inside an archive, returned as synthetic
+     * FileEntry objects so the panes, selection, sorting and swipe gestures all keep working.
+     */
+    private fun listArchivePane(archive: String, dir: String): List<FileEntry> {
+        val all = archiveListingCache[archive] ?: runCatching {
+            FileViewerRepository.listArchive(archive, ksuApp.cacheDir).also { archiveListingCache[archive] = it }
+        }.getOrDefault(emptyList())
+        val prefix = if (dir.isEmpty()) "" else "$dir/"
+        val childrenNames = HashSet<String>()
+        val children = all.mapNotNull { item ->
+            val rest = item.name.removePrefix(prefix)
+            if (!item.name.startsWith(prefix) || rest.isEmpty()) return@mapNotNull null
+            val slash = rest.indexOf('/')
+            val name: String
+            val isDir: Boolean
+            val size: Long
+            val entryPath: String
+            if (slash < 0) {
+                name = rest
+                isDir = item.directory
+                size = item.size
+                entryPath = FileViewerRepository.archiveVirtualPath(archive, item.name.trimEnd('/'))
+            } else {
+                name = rest.substring(0, slash)
+                isDir = true
+                size = -1L
+                entryPath = FileViewerRepository.archiveVirtualPath(archive, prefix + name)
+            }
+            if (isDir && childrenNames.contains(name)) return@mapNotNull null
+            childrenNames += name
+            FileEntry(
+                path = entryPath,
+                name = name,
+                isDirectory = isDir,
+                size = size,
+                lastModified = -1L,
+                mode = if (isDir) "drwxr-xr-x" else "-rw-r--r--",
+            )
+        }
+        return children
+    }
+
+    private val archiveListingCache = mutableMapOf<String, List<FileViewerRepository.ArchiveItem>>()
 
     fun navigate(pane: Int, path: String, fromHistory: Boolean = false) {
         if (path.isBlank()) return
@@ -98,6 +167,19 @@ class FileManagerViewModel : ViewModel() {
 
     fun up(pane: Int) {
         val path = _state.value.panes.getOrNull(pane)?.path ?: return
+        val virtual = FileViewerRepository.parseArchiveVirtual(path)
+        if (virtual != null) {
+            val (archive, dir) = virtual
+            if (dir.isEmpty()) {
+                // Leaving the archive: land on the archive file's real parent directory.
+                archiveListingCache.remove(archive)
+                navigate(pane, FileManagerRepository.parent(archive))
+            } else {
+                val parent = dir.substringBeforeLast('/', "")
+                navigate(pane, FileViewerRepository.archiveVirtualPath(archive, parent))
+            }
+            return
+        }
         navigate(pane, FileManagerRepository.parent(path))
     }
 

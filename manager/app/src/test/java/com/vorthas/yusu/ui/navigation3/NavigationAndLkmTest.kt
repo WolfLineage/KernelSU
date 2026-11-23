@@ -22,13 +22,20 @@ class NavigationAndLkmTest {
     }
 
     @Test
-    fun lkmUpdatePromptDisappearsWhenVersionsMatch() = assertFalse(
-        homeState(ksuVersion = 32760, managerVersion = 32760).showLkmUpdate,
-    )
+    fun noStandaloneLkmPromptExists() {
+        // The bundled LKM and manager ship together; comparing their numeric versions
+        // produced a permanent false-positive notice. UAPI compatibility is covered by
+        // requiresNewKernel / requiresNewManager, so no separate showLkmUpdate flag.
+        assertFalse(
+            HomeUiState::class.java.declaredMethods.any { it.name == "getShowLkmUpdate" } ||
+                HomeUiState::class.java.declaredFields.any { it.name == "showLkmUpdate" }
+        )
+    }
 
     @Test
-    fun lkmUpdatePromptAppearsOnRealMismatch() = assertTrue(
-        homeState(ksuVersion = 32760, managerVersion = 32761).showLkmUpdate,
+    fun uapiCompatibilityStillDetected() = assertTrue(
+        homeState(ksuVersion = 30400, managerVersion = 30400)
+            .copy(requiresNewManager = true).requiresNewManager
     )
 
     private fun homeState(ksuVersion: Int, managerVersion: Long): HomeUiState = HomeUiState(

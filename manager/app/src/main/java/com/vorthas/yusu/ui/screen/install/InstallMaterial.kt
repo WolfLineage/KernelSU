@@ -123,6 +123,14 @@ internal fun InstallScreenMaterial(
                         )
                     }
                     add {
+                        SegmentedCheckboxItem(
+                            title = stringResource(R.string.install_susfs_integration),
+                            summary = stringResource(R.string.install_susfs_integration_summary),
+                            checked = uiState.susfsIntegration,
+                            onCheckedChange = actions.onSelectSusfsIntegration,
+                        )
+                    }
+                    add {
                         SegmentedListItem(
                             leadingContent = {
                                 Icon(

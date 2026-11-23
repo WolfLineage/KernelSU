@@ -31,14 +31,11 @@ data class HomeUiState(
     val showGkiWarning: Boolean
         get() = ksuVersion != null && lkmMode == false
 
-    val showLkmUpdate: Boolean
-        get() = isManager &&
-                lkmMode == true &&
-                isLkmBundled &&
-                ksuVersion?.toLong() != currentManagerVersionCode &&
-                !requiresNewKernel &&
-                !requiresNewManager
-
+    // The bundled LKM ships inside this manager APK, so the manager's versionCode is
+    // not comparable to the version already flashed in the kernel (different release
+    // trains). Comparing them produced a permanent "LKM update available" notice that
+    // survived updates. UAPI compatibility is already covered by the two
+    // requiresNewKernel / requiresNewManager checks above, so no separate LKM notice.
     // Jailbreak mode runs on locked bootloaders, so flashing a boot image would brick the device.
     val canInstallKernelUpdate: Boolean
         get() = lkmMode == true && !isLateLoadMode

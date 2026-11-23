@@ -21,8 +21,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.dropUnlessResumed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.vorthas.yusu.R
+import com.vorthas.yusu.data.susfs.SusfsRepository
 import com.vorthas.yusu.getKernelVersion
 import com.vorthas.yusu.ui.LocalUiMode
 import com.vorthas.yusu.ui.UiMode
@@ -66,6 +68,7 @@ fun InstallScreen() {
     var allowShell by rememberSaveable { mutableStateOf(false) }
     var enableAdb by rememberSaveable { mutableStateOf(false) }
     var forceBackup by rememberSaveable { mutableStateOf(false) }
+    var susfsIntegration by rememberSaveable { mutableStateOf(SusfsRepository.isIntegrationEnabled()) }
 
     val currentKmi by produceState(initialValue = "") { value = getCurrentKmi() }
     val partitions by produceState(initialValue = emptyList()) { value = getAvailablePartitions() }
@@ -236,6 +239,7 @@ fun InstallScreen() {
         enableAdb = enableAdb,
         forceBackup = forceBackup,
         canForceBackup = installMethod is InstallMethod.SelectFile,
+        susfsIntegration = susfsIntegration,
     )
     val actions = InstallScreenActions(
         onBack = dropUnlessResumed { navigator.pop() },
@@ -285,6 +289,10 @@ fun InstallScreen() {
         },
         onSelectForceBackup = {
             forceBackup = it
+        },
+        onSelectSusfsIntegration = { enabled ->
+            susfsIntegration = enabled
+            scope.launch(Dispatchers.IO) { SusfsRepository.setIntegrationEnabled(enabled) }
         }
     )
 

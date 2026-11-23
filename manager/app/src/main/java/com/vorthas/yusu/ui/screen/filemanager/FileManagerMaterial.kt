@@ -1,7 +1,17 @@
 package com.vorthas.yusu.ui.screen.filemanager
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import com.vorthas.yusu.ui.screen.texteditor.MtColors
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -38,6 +48,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ZoomOutMap
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
@@ -53,8 +69,14 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -69,7 +91,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.vorthas.yusu.ui.component.material.expressiveTopAppBarColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -108,6 +136,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import com.vorthas.yusu.R
 import com.vorthas.yusu.data.filemanager.FileEntry
+import com.vorthas.yusu.data.filemanager.FileKind
 import com.vorthas.yusu.data.filemanager.FileManagerRepository
 import com.vorthas.yusu.ui.LocalUiMode
 import com.vorthas.yusu.ui.UiMode
@@ -120,12 +149,19 @@ import kotlin.math.abs
 
 internal enum class DialogKind { NEW_FOLDER, RENAME }
 
+/** Shell scripts that MT Manager offers to execute on a single tap. */
+private fun isShellScriptEntry(entry: FileEntry): Boolean {
+    if (entry.isDirectory) return false
+    val name = entry.name.lowercase()
+    return listOf(".sh", ".bash", ".zsh", ".ksh", ".fish").any { name.endsWith(it) }
+}
+
+/** Broad "script-like" set used only for type colouring, never for auto-execute. */
 private fun isScriptEntry(entry: FileEntry): Boolean {
     val name = entry.name.lowercase()
     return !entry.isDirectory && (
         name.endsWith(".sh") || name.endsWith(".bash") || name.endsWith(".py") ||
-            name.endsWith(".js") || name.endsWith(".lua") || name.endsWith(".so") ||
-            entry.mode.contains('x') || isElfFile(entry.path)
+            name.endsWith(".js") || name.endsWith(".lua") || isElfFile(entry.path)
         )
 }
 
@@ -137,7 +173,45 @@ private fun isApkEntry(entry: FileEntry): Boolean {
     return name.contains(Regex("\\.apk\\.\\d+$", RegexOption.IGNORE_CASE))
 }
 
-private fun isElfFile(path: String): Boolean = runCatching {
+/** MT Manager type-tile colours, sampled from its file list (grey folder, blue scripts, ...). */
+private fun mtTileColor(entry: FileEntry): Color {
+    if (entry.isDirectory) return Color(0xFF4A4A4A)
+    val name = entry.name.lowercase()
+    return when {
+        name.endsWith(".apk") || name.endsWith(".apks") -> Color(0xFF3AA83A)
+        name.endsWith(".sh") || name.endsWith(".bash") || name.endsWith(".py") ||
+            name.endsWith(".js") || name.endsWith(".lua") || isScriptEntry(entry) -> Color(0xFF3F72D6)
+        name.endsWith(".json") || name.endsWith(".xml") -> Color(0xFF1976D2)
+        name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+            name.endsWith(".gif") || name.endsWith(".webp") -> Color(0xFF26A69A)
+        name.endsWith(".zip") || name.endsWith(".rar") || name.endsWith(".7z") ||
+            name.endsWith(".tar") || name.endsWith(".gz") -> Color(0xFF9C6B3F)
+        name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".flac") -> Color(0xFFD32F2F)
+        name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") -> Color(0xFFEF6C00)
+        name.endsWith(".pdf") -> Color(0xFFC62828)
+        else -> Color(0xFF607D8B)
+    }
+}
+
+private fun mtTileIcon(entry: FileEntry): androidx.compose.ui.graphics.vector.ImageVector {
+    val name = entry.name.lowercase()
+    return when {
+        entry.isDirectory -> Icons.Filled.Folder
+        isApkEntry(entry) -> Icons.Filled.Android
+        name.endsWith(".zip") || name.endsWith(".rar") || name.endsWith(".7z") ||
+            name.endsWith(".tar") || name.endsWith(".gz") -> Icons.Filled.FolderZip
+        name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+            name.endsWith(".gif") || name.endsWith(".webp") -> Icons.Filled.Image
+        name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".flac") -> Icons.Filled.MusicNote
+        name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") -> Icons.Filled.VideoLibrary
+        name.endsWith(".pdf") -> Icons.Filled.PictureAsPdf
+        name.endsWith(".sh") || name.endsWith(".bash") || name.endsWith(".py") ||
+            name.endsWith(".js") -> Icons.Filled.Terminal
+        else -> Icons.AutoMirrored.Filled.InsertDriveFile
+    }
+}
+
+private fun isElfFile(path: String): Boolean = if (path.contains('\u0000')) false else runCatching {
     FileManagerRepository.readHeader(path).contentEquals(
         byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte())
     )
@@ -231,27 +305,25 @@ internal fun FileManagerScreenMaterial(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        stringResource(R.string.file_manager),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                },
+            LargeFlexibleTopAppBar(
+                title = { Text(stringResource(R.string.file_manager)) },
                 navigationIcon = {
-                    TextButton(onClick = actions.onBack, modifier = Modifier.width(48.dp)) {
-                        Text("←", fontSize = 18.sp)
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
                 },
+                // Back/forward/swap live in the bottom action bar (MT style); the top bar
+                // only keeps bookmarks and search.
                 actions = {
-                    TopTool("↶", state.canBack.getOrNull(state.activePane) == true) {
-                        actions.onPaneBack(state.activePane)
+                    IconButton(onClick = actions.onShowBookmarks) {
+                        Icon(Icons.Filled.Bookmark, contentDescription = "书签")
                     }
-                    TopTool("↷", state.canForward.getOrNull(state.activePane) == true) {
-                        actions.onPaneForward(state.activePane)
+                    IconButton(onClick = { searchOpen = true }) {
+                        Icon(Icons.Outlined.Search, contentDescription = "搜索")
                     }
-                    TopTool("⇄", true, actions.onSwap)
                 },
+                colors = expressiveTopAppBarColors(),
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
             )
         }
     ) { padding ->
@@ -273,12 +345,59 @@ internal fun FileManagerScreenMaterial(
                         },
                 ) {
                     PaneMaterial(state, actions, 0, Modifier.weight(1f), compact, onRunScript)
-                    HorizontalDivider(Modifier.width(1.dp).fillMaxHeight())
+                    // A real full-height 1dp rule, not HorizontalDivider forced narrow
+                    // (which renders as a tiny dot). Low alpha keeps the two panes
+                    // visually separated without cutting the screen in half.
+                    Box(
+                        Modifier.width(1.dp).fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    )
                     PaneMaterial(state, actions, 1, Modifier.weight(1f), compact, onRunScript)
                 }
             }
             ActionBarMaterial(state, actions, showDialog = { dialog = it }, onSearch = { searchOpen = true })
         }
+    }
+
+    if (state.bookmarksOpen) {
+        AlertDialog(
+            // Ignore the first dismiss request: the tap that opened this dialog can
+            // "tap through" to its scrim in the same frame and close it instantly.
+            onDismissRequest = {},
+            containerColor = dialogSurface(),
+            titleContentColor = dialogText(),
+            textContentColor = dialogText(),
+            title = { Text("书签") },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    if (state.bookmarkPaths.isEmpty()) {
+                        Text("暂无书签。长按目录或文件可添加。", color = dialogText())
+                    } else {
+                        state.bookmarkPaths.forEach { path ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    actions.onNavigateBookmark(path)
+                                    actions.onHideBookmarks()
+                                }.padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Filled.Bookmark, null, tint = toolPrimaryColor(),
+                                    modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(path, color = dialogText(), fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f))
+                                IconButton(onClick = { actions.onToggleBookmark(path) }) {
+                                    Icon(Icons.Filled.Delete, null, tint = toolMutedColor(),
+                                        modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = actions.onHideBookmarks) { Text("关闭") } },
+        )
     }
 
     if (searchOpen) {
@@ -377,6 +496,8 @@ internal fun PaneMaterial(
     var scriptTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var scriptRoot by remember { mutableStateOf(true) }
     var contextPath by remember { mutableStateOf<String?>(null) }
+    var deleteTarget by remember { mutableStateOf<String?>(null) }
+    var infoTarget by remember { mutableStateOf<String?>(null) }
     var renameTarget by remember { mutableStateOf<String?>(null) }
     var renameInput by remember { mutableStateOf("") }
     var chmodDialog by remember { mutableStateOf(false) }
@@ -424,6 +545,7 @@ internal fun PaneMaterial(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .padding(top = 8.dp)
             .pointerInput(index) {
                 // Initial pass: focus follows any touch, including vertical scrolling,
                 // AND MT-style pull-to-refresh lives here too. This runs EARLIER than
@@ -506,26 +628,39 @@ internal fun PaneMaterial(
                 }
             }
         }
-        Text(
-            text = if (pane.selected.isNotEmpty()) {
-                stringResource(R.string.fm_pane, index + 1) + " · " +
-                    stringResource(R.string.fm_selected, pane.selected.size)
-            } else {
-                buildString {
-                    append(stringResource(R.string.fm_pane, index + 1))
-                    append(" · ")
-                    append(if (pane.loading) stringResource(R.string.fm_loading) else stringResource(R.string.fm_items, pane.entries.size))
-                    append(" · ${stringResource(when (pane.sort) { FileSortMode.NAME -> R.string.fm_sort_name; FileSortMode.SIZE -> R.string.fm_sort_size; FileSortMode.DATE -> R.string.fm_sort_date })}")
-                }
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = if (state.activePane == index) toolPrimaryColor() else toolMutedColor(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-        )
-        // Visible refresh feedback: title flips to 加载中 AND this thin bar tracks.
-        if (pane.loading) {
+        // MT-style smooth refresh feedback: cross-fade the status text instead of
+        // snapping between "N items" and "loading", and ease the progress bar in/out.
+        val statusText = if (pane.selected.isNotEmpty()) {
+            stringResource(R.string.fm_pane, index + 1) + " · " +
+                stringResource(R.string.fm_selected, pane.selected.size)
+        } else {
+            buildString {
+                append(stringResource(R.string.fm_pane, index + 1))
+                append(" · ")
+                append(if (pane.loading) stringResource(R.string.fm_loading) else stringResource(R.string.fm_items, pane.entries.size))
+                append(" · ${stringResource(when (pane.sort) { FileSortMode.NAME -> R.string.fm_sort_name; FileSortMode.SIZE -> R.string.fm_sort_size; FileSortMode.DATE -> R.string.fm_sort_date })}")
+            }
+        }
+        val statusColor = if (state.activePane == index) toolPrimaryColor() else toolMutedColor()
+        AnimatedContent(
+            targetState = statusText,
+            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(180)) },
+            label = "pane_status",
+        ) { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = statusColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+        }
+        AnimatedVisibility(
+            visible = pane.loading,
+            enter = fadeIn(tween(150)) + expandVertically(expandFrom = Alignment.Top, animationSpec = tween(150)),
+            exit = fadeOut(tween(150)) + shrinkVertically(shrinkTowards = Alignment.Top, animationSpec = tween(150)),
+        ) {
             LinearProgressIndicator(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -591,42 +726,46 @@ internal fun PaneMaterial(
                 textContentColor = dialogText(),
                 title = { Text(path.substringAfterLast('/')) },
                 text = {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        ContextItem("执行 / 打开") {
-                            val lower = path.lowercase()
-                            if (lower.endsWith(".apk") || lower.endsWith(".apks")) {
-                                apkTarget = path
-                            } else {
-                                scriptTarget = path to isElfFile(path)
+                    // MT-style two-column icon menu.
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState()).width(340.dp)) {
+                        val rows = listOf(
+                            MtCtx(Icons.Filled.Unarchive, if (index == 0) "解压 ->" else "<- 解压", enabled = true) {
+                                if (!wasSelected) actions.onSelectOnly(index, path)
+                                actions.onExtract(); contextPath = null
+                            },
+                            MtCtx(Icons.Filled.ContentCopy, if (index == 0) "移动 ->" else "<- 移动", enabled = true) {
+                                if (!wasSelected) actions.onSelectOnly(index, path)
+                                actions.onTransfer(true); contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Delete, "删除", enabled = true) {
+                                if (!wasSelected) actions.onSelectOnly(index, path)
+                                deleteTarget = path; contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Edit, "重命名", enabled = true) {
+                                renameTarget = path
+                                renameInput = path.substringAfterLast('/')
+                                contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Build, "工具", enabled = true) {
+                                chmodDialog = true; contextPath = null
+                            },
+                            MtCtx(Icons.Filled.ZoomOutMap, "压缩", enabled = false) { contextPath = null },
+                            MtCtx(Icons.Filled.Info, "属性", enabled = true) {
+                                infoTarget = path; contextPath = null
+                            },
+                            MtCtx(Icons.Filled.MoreVert, "打开方式...", enabled = true) {
+                                actions.onOpenEditor(path); contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Bookmark, if (path in state.bookmarkPaths) "取消书签" else "添加书签", enabled = true) {
+                                actions.onToggleBookmark(path); contextPath = null
+                            },
+                        )
+                        rows.chunked(2).forEach { pair ->
+                            Row(Modifier.fillMaxWidth()) {
+                                pair.forEach { item -> MtContextItem(item, Modifier.weight(1f)) }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            contextPath = null
                         }
-                        if (path.lowercase().endsWith(".apk") || path.lowercase().endsWith(".apks")) {
-                            ContextItem("安装 APK") { apkTarget = path; contextPath = null }
-                        }
-                        ContextItem("修改权限") {
-                            if (!wasSelected) actions.onSelectOnly(index, path)
-                            chmodDialog = true; contextPath = null
-                        }
-                        ContextItem("重命名") {
-                            renameTarget = path
-                            renameInput = path.substringAfterLast('/')
-                            contextPath = null
-                        }
-                        ContextItem("复制 → 副窗口") {
-                            if (!wasSelected) actions.onSelectOnly(index, path)
-                            actions.onTransfer(false); contextPath = null
-                        }
-                        ContextItem("移动 → 副窗口") {
-                            if (!wasSelected) actions.onSelectOnly(index, path)
-                            actions.onTransfer(true); contextPath = null
-                        }
-                        ContextItem("解压") {
-                            if (!wasSelected) actions.onSelectOnly(index, path)
-                            actions.onExtract(); contextPath = null
-                        }
-                        ContextItem("编辑") { actions.onOpenEditor(path); contextPath = null }
-                        ContextItem("加入多选") { actions.onSelect(index, path); contextPath = null }
                         ContextItem("取消") { contextPath = null }
                     }
                 },
@@ -709,6 +848,59 @@ internal fun PaneMaterial(
                         Text(stringResource(android.R.string.cancel))
                     }
                 },
+            )
+        }
+
+        deleteTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { deleteTarget = null },
+                containerColor = dialogSurface(),
+                titleContentColor = dialogText(),
+                textContentColor = dialogText(),
+                title = { Text("删除") },
+                text = { Text("确定删除「${target.substringAfterLast('/')}」吗？此操作不可恢复。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        actions.onDelete()
+                        deleteTarget = null
+                    }) { Text("删除", color = Color(0xFFE53935)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteTarget = null }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+            )
+        }
+
+        infoTarget?.let { target ->
+            val entry = pane.entries.firstOrNull { it.path == target }
+            val kindText = when (FileManagerRepository.sniff(target)) {
+                FileKind.IMAGE -> "图片"
+                FileKind.ARCHIVE -> "压缩包"
+                FileKind.ELF -> "可执行文件"
+                FileKind.DEX -> "DEX"
+                FileKind.PDF -> "PDF"
+                FileKind.SQLITE -> "数据库"
+                FileKind.TEXT -> "文本"
+                else -> "文件"
+            }
+            AlertDialog(
+                onDismissRequest = { infoTarget = null },
+                containerColor = dialogSurface(),
+                titleContentColor = dialogText(),
+                textContentColor = dialogText(),
+                title = { Text("属性") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        InfoRow("名称", target.substringAfterLast('/'))
+                        InfoRow("路径", target)
+                        InfoRow("类型", kindText)
+                        InfoRow("大小", FileManagerRepository.formatSize(FileManagerRepository.fileSize(target)))
+                        InfoRow("权限", entry?.mode ?: "—")
+                    }
+                },
+                confirmButton = { TextButton(onClick = { infoTarget = null }) { Text(stringResource(android.R.string.ok)) } },
             )
         }
 
@@ -834,7 +1026,10 @@ private fun ParentRow(index: Int, selectionMode: Boolean, actions: FileManagerAc
             )
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        Icon(Icons.Filled.Folder, null, tint = Color(0xFF42A5F5))
+        Box(
+            Modifier.size(34.dp).background(Color(0xFF4A4A4A), androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Filled.Folder, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
         Spacer(Modifier.width(8.dp))
         Column {
             Text("..", style = MaterialTheme.typography.bodyMedium, color = toolTextColor())
@@ -863,8 +1058,7 @@ private fun FileRowMaterial(
     val openEntry = {
         actions.onActivePane(paneIndex)
         if (entry.isDirectory) actions.onNavigate(paneIndex, entry.path)
-        else if (isApkEntry(entry)) onApk(entry.path)
-        else if (isScriptEntry(entry)) onScript(entry.path)
+        else if (isShellScriptEntry(entry) && !entry.path.contains('\u0000')) onScript(entry.path)
         else actions.onOpenEditor(entry.path)
     }
     Box(
@@ -945,28 +1139,33 @@ private fun FileRowMaterial(
                 )
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            Icon(
-            imageVector = when {
-                entry.isDirectory -> Icons.Filled.Folder
-                isApkEntry(entry) -> Icons.Filled.Android
-                isScriptEntry(entry) -> Icons.Filled.Description
-                else -> Icons.AutoMirrored.Filled.InsertDriveFile
-            },
-            contentDescription = null,
-            tint = when {
-                entry.isDirectory -> Color(0xFF42A5F5)
-                isApkEntry(entry) -> Color(0xFF8BC34A)
-                isScriptEntry(entry) -> Color(0xFF66BB6A)
-                else -> toolMutedColor()
-            },
-        )
+            // MT-style uniform grey type tile with a white glyph; only the tile tint
+            // signals the category (MT's folder tile is grey, not blue).
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .background(mtTileColor(entry), androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = mtTileIcon(entry),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = toolTextColor())
             Text(
-                "${entry.mode}  ${if (entry.isDirectory) "<DIR>" else FileManagerRepository.formatSize(entry.size)}",
+                buildString {
+                    append(entry.mode)
+                    if (entry.isLink) append(" -> ${entry.linkTarget}")
+                    append("  ")
+                    append(if (entry.isDirectory) "<DIR>" else FileManagerRepository.formatSize(entry.size))
+                },
                 style = MaterialTheme.typography.labelSmall,
-                color = toolMutedColor(),
+                color = if (entry.isLink) Color(0xFF64B5F6) else toolMutedColor(),
             )
         }
     }
@@ -992,26 +1191,20 @@ internal fun ActionBarMaterial(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         )
     }
+    // MT Manager's file-manager action bar: back, forward, new, swap panes and up.
+    // Height (34dp), icon size and padding match the terminal's bottom action bar.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 6.dp),
+            .height(34.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionIcon(Icons.Filled.ContentCopy, R.string.fm_copy) { actions.onTransfer(false) }
-        ActionIcon(Icons.AutoMirrored.Filled.ArrowForward, R.string.fm_move) { actions.onTransfer(true) }
-        ActionIcon(Icons.Filled.ContentPaste, R.string.fm_paste, actions.onPaste)
-        ActionIcon(Icons.Filled.Delete, R.string.fm_delete, actions.onDelete)
-        ActionIcon(Icons.Filled.Unarchive, R.string.fm_extract, actions.onExtract)
-        ActionIcon(Icons.Filled.CreateNewFolder, R.string.fm_new_target) { showDialog(DialogKind.NEW_FOLDER) }
-        ActionIcon(Icons.Filled.Edit, R.string.fm_rename) { showDialog(DialogKind.RENAME) }
-        ActionIcon(Icons.Filled.ManageSearch, R.string.fm_search, onSearch)
-        ActionIcon(Icons.Filled.SelectAll, R.string.fm_select_all, actions.onSelectAll)
-        ActionIcon(Icons.Filled.SwapHoriz, R.string.fm_invert, actions.onInvertSelection)
-        ActionIcon(Icons.Filled.SwapVert, R.string.fm_sort, actions.onCycleSort)
-        ActionIcon(Icons.Filled.TextFields, R.string.fm_edit, actions.onOpenEditorFirst)
-        ActionIcon(Icons.Filled.Terminal, R.string.fm_shell, actions.onOpenTerminal)
+        ActionIcon(Icons.AutoMirrored.Filled.ArrowBack, "后退") { actions.onPaneBack(state.activePane) }
+        ActionIcon(Icons.AutoMirrored.Filled.ArrowForward, "前进") { actions.onPaneForward(state.activePane) }
+        ActionIcon(Icons.Filled.CreateNewFolder, "新建") { showDialog(DialogKind.NEW_FOLDER) }
+        ActionIcon(Icons.Filled.SwapHoriz, "交换窗格") { actions.onSwap() }
+        ActionIcon(Icons.Filled.ArrowUpward, "上级") { actions.onUp(state.activePane) }
     }
 }
 
@@ -1101,6 +1294,35 @@ internal fun SearchDialog(
 }
 
 @Composable
+private fun InfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(label, color = toolMutedColor(), fontSize = 13.sp, modifier = Modifier.width(56.dp))
+        Text(value, color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+private data class MtCtx(
+    val icon: ImageVector,
+    val label: String,
+    val enabled: Boolean,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun MtContextItem(item: MtCtx, modifier: Modifier) {
+    Row(
+        modifier.clickable(enabled = item.enabled) { item.onClick() }
+            .padding(horizontal = 10.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(item.icon, null, tint = if (item.enabled) toolPrimaryColor() else toolMutedColor(),
+            modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(item.label, color = if (item.enabled) dialogText() else toolMutedColor(), fontSize = 14.sp)
+    }
+}
+
+@Composable
 private fun ContextItem(label: String, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
@@ -1112,5 +1334,12 @@ private fun ContextItem(label: String, onClick: () -> Unit) {
 private fun ActionIcon(icon: ImageVector, labelRes: Int, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
         Icon(icon, stringResource(labelRes), tint = toolPrimaryColor())
+    }
+}
+
+@Composable
+private fun ActionIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
+        Icon(icon, label, tint = toolPrimaryColor(), modifier = Modifier.size(20.dp))
     }
 }

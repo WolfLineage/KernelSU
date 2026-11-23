@@ -38,7 +38,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import com.vorthas.yusu.ui.component.material.expressiveTopAppBarColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,10 +98,8 @@ internal fun TerminalScreenMaterial(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(stringResource(R.string.terminal), style = MaterialTheme.typography.titleMedium)
-                },
+            LargeFlexibleTopAppBar(
+                title = { Text(stringResource(R.string.terminal)) },
                 navigationIcon = {
                     IconButton(onClick = actions.onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
@@ -103,7 +107,9 @@ internal fun TerminalScreenMaterial(
                 },
                 actions = {
                     IconButton(onClick = actions.onClear) { Icon(Icons.Filled.Delete, null) }
-                }
+                },
+                colors = expressiveTopAppBarColors(),
+                windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
             )
         }
     ) { padding ->
@@ -130,16 +136,16 @@ internal fun TerminalScreenMiuix(
 ) {
     MiuixScaffold(
         topBar = {
-            Row(
-                modifier = Modifier.statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.terminal),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MiuixTheme.colorScheme.onBackground,
-                )
-            }
+            // Same Miuix TopAppBar component other pages use, so title size/position match.
+            MiuixTopAppBar(
+                color = MiuixTheme.colorScheme.surface,
+                title = stringResource(R.string.terminal),
+                actions = {
+                    IconButton(onClick = actions.onClear) {
+                        Icon(Icons.Filled.Delete, contentDescription = "清空", tint = MiuixTheme.colorScheme.onBackground)
+                    }
+                },
+            )
         },
         popupHost = {},
     ) { padding ->

@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import com.vorthas.yusu.data.repository.SettingsRepositoryImpl
+import com.vorthas.yusu.data.susfs.SusfsRepository
 import com.vorthas.yusu.ui.viewmodel.SuperUserViewModel
 import okhttp3.Cache
 import okhttp3.OkHttpClient
@@ -61,6 +62,12 @@ class YuSUApplication : Application(), ViewModelStoreOwner {
 
         // Provide working env for rust's temp_dir()
         Os.setenv("TMPDIR", cacheDir.absolutePath, true)
+
+        // Install the bundled SuSFS LKM engine and boot hooks outside the main thread.
+        // The repository is idempotent and preserves user configuration on upgrades.
+        Thread {
+            if (SusfsRepository.isIntegrationEnabled()) SusfsRepository.install()
+        }.apply { isDaemon = true; name = "susfs-install" }.start()
 
         okhttpClient =
             OkHttpClient.Builder().cache(Cache(File(cacheDir, "okhttp"), 10 * 1024 * 1024))
