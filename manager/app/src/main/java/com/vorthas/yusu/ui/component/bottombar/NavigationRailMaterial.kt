@@ -52,12 +52,9 @@ fun NavigationRailMaterial(
 
     val mainPagerState = LocalMainPagerState.current
 
-    val items = listOf(
-        Triple(R.string.home, Icons.Filled.Home, Icons.Outlined.Home),
-        Triple(R.string.superuser, Icons.Filled.Shield, Icons.Outlined.Shield),
-        Triple(R.string.module, Icons.Filled.Extension, Icons.Outlined.Extension),
-        Triple(R.string.settings, Icons.Filled.Settings, Icons.Outlined.Settings)
-    )
+    val items = BottomBarDestination.entries.map {
+        Triple(it.label, it.selectedIcon, it.unselectedIcon)
+    }
 
     val settingsRepo = remember { SettingsRepositoryImpl() }
     val state = rememberWideNavigationRailState(

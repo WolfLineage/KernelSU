@@ -2,16 +2,33 @@ package com.vorthas.yusu.ui.component.bottombar
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.rounded.Cottage
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,7 +87,7 @@ fun BottomBarMiuix(
                         NavigationBarItem(
                             modifier = Modifier.weight(1f),
                             icon = item.icon,
-                            label = item.label,
+                            label = "",
                             selected = mainState.selectedPage == index,
                             onClick = {
                                 mainState.animateToPage(index)
@@ -102,7 +119,7 @@ fun BottomBarMiuix(
                     onClick = {
                         activateTab(index)
                     },
-                    modifier = Modifier.defaultMinSize(minWidth = 76.dp)
+                    modifier = Modifier.defaultMinSize(minWidth = 72.dp)
                 ) {
                     // Icon and label take LocalContentColor so the FloatingBottomBar backdrop copy
                     // can recolor them to the accent tone inside the indicator pill.
@@ -118,14 +135,7 @@ fun BottomBarMiuix(
                     } else {
                         icon()
                     }
-                    Text(
-                        text = item.label,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Visible
-                    )
+                    Spacer(Modifier.width(12.dp))
                 }
             }
         }
@@ -135,11 +145,25 @@ fun BottomBarMiuix(
 enum class BottomBarDestination(
     @get:StringRes val label: Int,
     val icon: ImageVector,
+    val selectedIcon: ImageVector = icon,
+    val unselectedIcon: ImageVector = icon,
 ) {
-    Home(R.string.home, Icons.Rounded.Cottage),
-    SuperUser(R.string.superuser, Icons.Rounded.Security),
-    Module(R.string.module, Icons.Rounded.Extension),
-    Setting(R.string.settings, Icons.Rounded.Settings)
+    Home(R.string.home, Icons.Rounded.Cottage, Icons.Filled.Home, Icons.Outlined.Home),
+    SuperUser(R.string.superuser, Icons.Rounded.Security, Icons.Filled.Shield, Icons.Outlined.Shield),
+    Module(R.string.module, Icons.Rounded.Extension, Icons.Filled.Extension, Icons.Outlined.Extension),
+    FileManager(
+        R.string.file_manager,
+        Icons.Rounded.Folder,
+        Icons.Filled.Folder,
+        Icons.Outlined.Folder,
+    ),
+    Terminal(
+        R.string.terminal,
+        Icons.Rounded.Terminal,
+        Icons.Filled.Terminal,
+        Icons.Outlined.Terminal,
+    ),
+    Setting(R.string.settings, Icons.Rounded.Settings, Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
 internal fun navigationBadgeFor(

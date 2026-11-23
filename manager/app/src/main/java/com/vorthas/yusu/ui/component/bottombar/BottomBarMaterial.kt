@@ -37,12 +37,9 @@ fun BottomBarMaterial(navigationBadge: NavigationBadgeState) {
 
     val mainPagerState = LocalMainPagerState.current
 
-    val items = listOf(
-        Triple(R.string.home, Icons.Filled.Home, Icons.Outlined.Home),
-        Triple(R.string.superuser, Icons.Filled.Shield, Icons.Outlined.Shield),
-        Triple(R.string.module, Icons.Filled.Extension, Icons.Outlined.Extension),
-        Triple(R.string.settings, Icons.Filled.Settings, Icons.Outlined.Settings)
-    )
+    val items = BottomBarDestination.entries.map {
+        Triple(it.label, it.selectedIcon, it.unselectedIcon)
+    }
 
     ShortNavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -66,13 +63,7 @@ fun BottomBarMaterial(navigationBadge: NavigationBadgeState) {
                         badge = badgeFor(index, navigationBadge),
                     )
                 },
-                label = {
-                    Text(
-                        stringResource(label),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                label = {},
             )
         }
     }

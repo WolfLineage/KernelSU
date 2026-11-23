@@ -1,0 +1,326 @@
+package com.vorthas.yusu.ui.screen.filemanager
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.vorthas.yusu.data.filemanager.FileManagerRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+class FileManagerViewModel : ViewModel() {
+    private val _state = MutableStateFlow(FileManagerUiState())
+    val state: StateFlow<FileManagerUiState> = _state.asStateFlow()
+
+    private val backStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
+    private val forwardStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
+
+    init {
+        refresh(0)
+        refresh(1)
+    }
+
+    fun refresh(pane: Int) = viewModelScope.launch(Dispatchers.IO) {
+        val path = _state.value.panes.getOrNull(pane)?.path ?: return@launch
+        // Surface feedback immediately: the pane title flips to "加载中" and the
+        // progress bar under it appears while the listing runs.
+        _state.update { state -> state.withPane(pane) { it.copy(loading = true) } }
+        val entries = runCatching { FileManagerRepository.list(path) }
+            .onFailure { FileManagerRepository.logFailure("list $path", it) }
+            .getOrDefault(emptyList())
+        val sort = _state.value.panes.getOrNull(pane)?.sort ?: FileSortMode.NAME
+        val sorted = when (sort) {
+            FileSortMode.NAME -> entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+            FileSortMode.SIZE -> entries.sortedWith(compareBy({ !it.isDirectory }, { -it.size }))
+            FileSortMode.DATE -> entries.sortedWith(compareBy({ !it.isDirectory }, { -it.lastModified }))
+        }
+        _state.update { state -> state.withPane(pane) { it.copy(entries = sorted, loading = false) } }
+    }
+
+    fun navigate(pane: Int, path: String, fromHistory: Boolean = false) {
+        if (path.isBlank()) return
+        val current = _state.value.panes.getOrNull(pane)?.path.orEmpty()
+        if (!fromHistory && path != current) {
+            backStacks[pane].addLast(current)
+            if (backStacks[pane].size > 100) backStacks[pane].removeFirst()
+            forwardStacks[pane].clear()
+        }
+        publishPath(pane, path)
+        refresh(pane)
+    }
+
+    fun back(pane: Int) {
+        val dest = backStacks[pane].removeLastOrNull() ?: return
+        val current = _state.value.panes.getOrNull(pane)?.path.orEmpty()
+        forwardStacks[pane].addLast(current)
+        publishPath(pane, dest)
+        refresh(pane)
+    }
+
+    fun forward(pane: Int) {
+        val dest = forwardStacks[pane].removeLastOrNull() ?: return
+        val current = _state.value.panes.getOrNull(pane)?.path.orEmpty()
+        backStacks[pane].addLast(current)
+        publishPath(pane, dest)
+        refresh(pane)
+    }
+
+    private fun publishPath(pane: Int, path: String) {
+        _state.update { state ->
+            state.withPane(pane) { it.copy(path = path, selected = emptySet(), loading = true) }
+                .copy(
+                    canBack = backStacks.mapIndexed { i, stack -> if (i == pane) stack.isNotEmpty() else state.canBack[i] },
+                    canForward = forwardStacks.mapIndexed { i, stack -> if (i == pane) stack.isNotEmpty() else state.canForward[i] },
+                )
+        }
+    }
+
+    fun swap() = _state.update { state ->
+        val b0 = backStacks[0].toList()
+        val b1 = backStacks[1].toList()
+        backStacks[0].clear(); backStacks[0].addAll(b1)
+        backStacks[1].clear(); backStacks[1].addAll(b0)
+        val f0 = forwardStacks[0].toList()
+        val f1 = forwardStacks[1].toList()
+        forwardStacks[0].clear(); forwardStacks[0].addAll(f1)
+        forwardStacks[1].clear(); forwardStacks[1].addAll(f0)
+        state.copy(
+            panes = listOf(state.panes[1], state.panes[0]),
+            activePane = 1 - state.activePane,
+            canBack = listOf(state.canBack[1], state.canBack[0]),
+            canForward = listOf(state.canForward[1], state.canForward[0]),
+        )
+    }
+
+    fun up(pane: Int) {
+        val path = _state.value.panes.getOrNull(pane)?.path ?: return
+        navigate(pane, FileManagerRepository.parent(path))
+    }
+
+    fun active(pane: Int) = _state.update { it.copy(activePane = pane) }
+
+    fun toggle(pane: Int, path: String) = _state.update { state ->
+        state.withPane(pane) { paneState ->
+            val selected = if (path in paneState.selected) paneState.selected - path else paneState.selected + path
+            paneState.copy(selected = selected)
+        }
+    }
+
+    fun selectOnly(pane: Int, path: String) = _state.update { state ->
+        state.withPane(pane) { it.copy(selected = setOf(path)) }
+    }
+
+    fun selectRange(pane: Int, from: Int, to: Int) = _state.update { state ->
+        state.withPane(pane) { paneState ->
+            if (paneState.entries.isEmpty()) return@withPane paneState
+            val start = minOf(from, to).coerceIn(0, paneState.entries.lastIndex)
+            val end = maxOf(from, to).coerceIn(0, paneState.entries.lastIndex)
+            paneState.copy(selected = paneState.entries.subList(start, end + 1).map { it.path }.toSet())
+        }
+    }
+
+    fun clearSelection(pane: Int) = _state.update { state -> state.withPane(pane) { it.copy(selected = emptySet()) } }
+
+    fun selectAll() = _state.update { state ->
+        state.withPane(state.activePane) { pane ->
+            pane.copy(selected = pane.entries.map { it.path }.toSet())
+        }
+    }
+
+    fun invertSelection() = _state.update { state ->
+        state.withPane(state.activePane) { pane ->
+            pane.copy(selected = pane.entries.map { it.path }.toSet() - pane.selected)
+        }
+    }
+
+    fun cycleSort() {
+        val pane = _state.value.activePane
+        _state.update { state ->
+            state.withPane(pane) { current ->
+                val next = when (current.sort) {
+                    FileSortMode.NAME -> FileSortMode.SIZE
+                    FileSortMode.SIZE -> FileSortMode.DATE
+                    FileSortMode.DATE -> FileSortMode.NAME
+                }
+                current.copy(sort = next)
+            }
+        }
+        refresh(pane)
+    }
+
+    fun copy() = stageClipboard(move = false)
+
+    fun move() = stageClipboard(move = true)
+
+    private fun stageClipboard(move: Boolean) = _state.update { state ->
+        val pane = state.activePane
+        val paths = state.panes.getOrNull(pane)?.selected.orEmpty().toList()
+        if (paths.isEmpty()) {
+            state.copy(message = "No file selected")
+        } else {
+            state.copy(clipboard = FileClipboard(paths, move, pane))
+        }
+    }
+
+    fun paste() = viewModelScope.launch(Dispatchers.IO) {
+        val state = _state.value
+        val clipboard = state.clipboard ?: return@launch
+        val targetDir = state.panes.getOrNull(state.activePane)?.path ?: return@launch
+        val firstSource = clipboard.paths.firstOrNull() ?: return@launch
+        if (FileManagerRepository.parent(firstSource).trimEnd('/') == targetDir.trimEnd('/')) {
+            message("Already in source directory")
+            return@launch
+        }
+        var failed = 0
+        for (source in clipboard.paths) {
+            val target = targetDir.trimEnd('/') + "/" + File(source).name
+            val error = if (clipboard.move) {
+                FileManagerRepository.move(source, target)
+            } else {
+                FileManagerRepository.copy(source, target)
+            }
+            if (error != null) failed++
+        }
+        message(if (failed == 0) "Done" else "$failed operation(s) failed")
+        val fromPane = clipboard.sourcePane
+        clearSelection(fromPane)
+        _state.update { it.copy(clipboard = null) }
+        refresh(fromPane)
+        refresh(state.activePane)
+    }
+
+    fun delete() = viewModelScope.launch(Dispatchers.IO) {
+        val state = _state.value
+        val pane = state.activePane
+        val paths = state.panes.getOrNull(pane)?.selected.orEmpty().toList()
+        if (paths.isEmpty()) {
+            message("No file selected")
+            return@launch
+        }
+        val failed = paths.count { !FileManagerRepository.delete(it) }
+        message(if (failed == 0) "Deleted" else "$failed deletion(s) failed")
+        clearSelection(pane)
+        refresh(pane)
+    }
+
+    /** MT-style direct transfer from the focused pane to the other pane. */
+    fun transfer(move: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        val state = _state.value
+        val pane = state.activePane
+        val dest = state.panes.getOrNull(1 - pane)?.path ?: return@launch
+        val paths = state.panes.getOrNull(pane)?.selected.orEmpty().toList()
+        if (paths.isEmpty()) {
+            message("No file selected")
+            return@launch
+        }
+        val errors = paths.mapNotNull { path ->
+            val target = FileManagerRepository.joinPath(dest, path.substringAfterLast('/'))
+            runCatching {
+                if (move) FileManagerRepository.move(path, target) else FileManagerRepository.copy(path, target)
+            }.getOrElse { it.message }
+        }
+        message(
+            if (errors.isEmpty()) "${if (move) "Moved" else "Copied"} ${paths.size} item(s) → $dest"
+            else errors.first()
+        )
+        clearSelection(pane)
+        refresh(pane)
+        refresh(1 - pane)
+    }
+
+    fun chmod(mode: String, recursive: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        val state = _state.value
+        val pane = state.activePane
+        val paths = state.panes.getOrNull(pane)?.selected.orEmpty().toList()
+        if (paths.isEmpty()) {
+            message("No file selected")
+            return@launch
+        }
+        val errors = paths.mapNotNull { FileManagerRepository.chmod(it, mode, recursive) }
+        message(if (errors.isEmpty()) "Permissions updated" else errors.first())
+        refresh(pane)
+    }
+
+    fun extract() = viewModelScope.launch(Dispatchers.IO) {
+        val state = _state.value
+        val pane = state.activePane
+        val dir = state.panes.getOrNull(1 - pane)?.path ?: state.panes.getOrNull(pane)?.path ?: return@launch
+        val suffixes = listOf("zip", "jar", "apk", "apks", "war", "tar", "gz", "tgz", "bz2", "xz", "7z", "rar")
+        val archives = state.panes.getOrNull(pane)?.selected.orEmpty()
+            .filter { path -> suffixes.any { path.lowercase().endsWith(".$it") } }
+            .toList()
+        if (archives.isEmpty()) {
+            message("No archive selected")
+            return@launch
+        }
+        var files = 0
+        var failed = 0
+        for (archive in archives) {
+            val result = runCatching { FileManagerRepository.extract(archive, dir) }
+                .onFailure { FileManagerRepository.logFailure("extract $archive", it) }
+                .getOrNull()
+            if (result == null) failed++ else files += result.files
+        }
+        message("Extracted $files file(s)" + if (failed > 0) ", $failed failed" else "")
+        clearSelection(pane)
+        refresh(pane)
+    }
+
+    fun newFolder(pane: Int, name: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (name.isBlank() || name.contains('/')) {
+            message("Invalid folder name")
+            return@launch
+        }
+        val dir = _state.value.panes.getOrNull(pane)?.path ?: return@launch
+        val path = dir.trimEnd('/') + "/" + name
+        message(if (FileManagerRepository.mkdir(path)) "Created" else "Failed to create folder")
+        refresh(pane)
+    }
+
+    fun newFile(pane: Int, name: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (name.isBlank() || name.contains('/')) {
+            message("Invalid file name")
+            return@launch
+        }
+        val dir = _state.value.panes.getOrNull(pane)?.path ?: return@launch
+        val path = dir.trimEnd('/') + "/" + name
+        message(if (FileManagerRepository.createFile(path)) "Created" else "Failed to create file")
+        refresh(pane)
+    }
+
+    fun rename(from: String, newName: String) = viewModelScope.launch(Dispatchers.IO) {
+        if (newName.isBlank() || newName.contains('/')) {
+            message("Invalid name")
+            return@launch
+        }
+        val target = FileManagerRepository.parent(from).trimEnd('/') + "/" + newName
+        val error = FileManagerRepository.rename(from, target)
+        message(error ?: "Renamed")
+        val pane = _state.value.activePane
+        clearSelection(pane)
+        refresh(pane)
+    }
+
+    /** Root package-manager install of an APK; result is surfaced via [message]. */
+    fun installApk(path: String) = viewModelScope.launch(Dispatchers.IO) {
+        _state.update { it.copy(busy = true) }
+        val error = FileManagerRepository.installApk(path)
+        _state.update { it.copy(busy = false) }
+        message(error ?: "Install success")
+    }
+
+    fun message(text: String) = _state.update { it.copy(message = text, busy = false) }
+
+    fun messageShown() = _state.update { it.copy(message = null) }
+
+    private fun FileManagerUiState.withPane(
+        pane: Int,
+        block: (PaneUiState) -> PaneUiState,
+    ): FileManagerUiState = copy(
+        panes = panes.mapIndexed { index, value -> if (index == pane) block(value) else value }
+    )
+}

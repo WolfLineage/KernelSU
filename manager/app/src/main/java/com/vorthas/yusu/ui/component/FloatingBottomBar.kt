@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -66,20 +67,21 @@ import kotlinx.coroutines.launch
 import com.vorthas.yusu.ui.component.liquid.InnerShadow
 import com.vorthas.yusu.ui.component.liquid.innerShadow
 import com.vorthas.yusu.ui.component.liquid.lens
-import com.vorthas.yusu.ui.component.liquid.rememberCombinedBackdrop
 import com.vorthas.yusu.ui.component.liquid.vibrancy
 import com.vorthas.yusu.ui.component.miuix.animation.DampedDragAnimation
 import com.vorthas.yusu.ui.component.miuix.animation.InteractiveHighlight
 import com.vorthas.yusu.ui.theme.isInDarkTheme
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.blur
+import com.vorthas.yusu.ui.component.liquid.rememberCombinedBackdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
 import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.highlight.LightPosition
 import top.yukonga.miuix.kmp.blur.highlight.LightSource
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -219,9 +221,9 @@ fun FloatingBottomBar(
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
     val containerColor = if (isBlurEnabled) surfaceContainer.copy(0.4f) else surfaceContainer
 
-    val tabsBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
+    val tabsBackdrop = rememberLayerBackdrop()
     val animationScope = rememberCoroutineScope()
 
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
@@ -252,29 +254,71 @@ fun FloatingBottomBar(
             .coerceIn(0, tabsCount - 1)
     }
 
+    // Direction lock for the capsule drag: without it a vertical swipe that merely
+    // PASSES OVER the capsule (common when flinging a list) drag-scrolled the pill
+    // and switched tabs, leaving dialogs stranded above the wrong page.
+    val capsuleDragLock = remember {
+        object {
+            var decided = false
+            var vertical = false
+            var startX = 0f
+            var accX = 0f
+            var accY = 0f
+            var pendingIndex = 0
+        }
+    }
+    val dragSlopPx = with(density) { 8.dp.toPx() }
+
     val dampedDragAnimation = remember(animationScope, tabsCount, density, isLtr) {
         DampedDragAnimation(
             animationScope = animationScope,
             initialValue = selectedIndex.toFloat(),
             valueRange = 0f..(tabsCount - 1).toFloat(),
             visibilityThreshold = 0.001f,
-            initialScale = 1f,
-            pressedScale = 78f / 56f,
+            // Idle shrinks the 80x77dp layout to a 50x48dp visual (landscape,
+            // h/w = 0.96, fully inside the 56dp shell); pressed = 1.0 renders the
+            // pill at its exact layout size, so the 8dp innerShadow ring hugs the
+            // glass edge and the top/bottom dip bands stay visible at full press.
+            initialScale = 0.625f,
+            pressedScale = 1f,
             canDrag = { offset ->
                 offset.x in 0f..totalWidthPx
             },
             onDragStarted = { position ->
-                updateValue(indexAt(position.x).toFloat())
+                // Taps route through here too. Commit the finger-down tab IMMEDIATELY
+                // (pill jumps to it and grows in place — the iOS behavior), remember it
+                // as pendingIndex for the stopped-commit below.
+                capsuleDragLock.decided = false
+                capsuleDragLock.vertical = false
+                capsuleDragLock.startX = position.x
+                capsuleDragLock.accX = 0f
+                capsuleDragLock.accY = 0f
+                capsuleDragLock.pendingIndex = indexAt(position.x)
+                updateValue(capsuleDragLock.pendingIndex.toFloat())
             },
             onDragStopped = {
-                val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
-                if (currentIndex != targetIndex) {
-                    currentIndex = targetIndex
-                    onSelectedUpdated(targetIndex)
-                }
-                updateValue(targetIndex.toFloat())
-                animationScope.launch {
-                    offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
+                if (capsuleDragLock.vertical) {
+                    // Vertical drag that merely crossed the capsule: restore, no tab switch.
+                    updateValue(currentIndex.toFloat())
+                    animationScope.launch {
+                        offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
+                    }
+                } else {
+                    // A plain tap (no drag events, undecided) commits the tab under the
+                    // finger; a proven-horizontal drag commits where the pill landed.
+                    val targetIndex = if (capsuleDragLock.decided) {
+                        targetValue.roundToInt().coerceIn(0, tabsCount - 1)
+                    } else {
+                        capsuleDragLock.pendingIndex
+                    }
+                    if (currentIndex != targetIndex) {
+                        currentIndex = targetIndex
+                        onSelectedUpdated(targetIndex)
+                    }
+                    updateValue(targetIndex.toFloat())
+                    animationScope.launch {
+                        offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
+                    }
                 }
             },
             onDragCancelled = {
@@ -284,13 +328,28 @@ fun FloatingBottomBar(
                 }
             },
             onDrag = { _, dragAmount ->
-                if (tabWidthPx > 0f && dragAmount.x != 0f) {
-                    updateValue(
-                        (targetValue + dragAmount.x / tabWidthPx * if (isLtr) 1f else -1f)
-                            .coerceIn(0f, (tabsCount - 1).toFloat()),
-                    )
-                    animationScope.launch {
-                        offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
+                if (!capsuleDragLock.decided) {
+                    capsuleDragLock.accX += dragAmount.x
+                    capsuleDragLock.accY += dragAmount.y
+                    if (abs(capsuleDragLock.accX) > dragSlopPx || abs(capsuleDragLock.accY) > dragSlopPx) {
+                        capsuleDragLock.decided = true
+                        // Horizontal wins only when it strictly dominates the vertical
+                        // axis — same rule as the file rows.
+                        capsuleDragLock.vertical = abs(capsuleDragLock.accY) >= abs(capsuleDragLock.accX)
+                        if (!capsuleDragLock.vertical) {
+                            updateValue(capsuleDragLock.pendingIndex.toFloat())
+                        }
+                    }
+                }
+                if (capsuleDragLock.decided && !capsuleDragLock.vertical) {
+                    if (tabWidthPx > 0f && dragAmount.x != 0f) {
+                        updateValue(
+                            (targetValue + dragAmount.x / tabWidthPx * if (isLtr) 1f else -1f)
+                                .coerceIn(0f, (tabsCount - 1).toFloat()),
+                        )
+                        animationScope.launch {
+                            offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
+                        }
                     }
                 }
             }
@@ -326,10 +385,10 @@ fun FloatingBottomBar(
         )
     }
 
+    val combinedBackdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop)
     val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
     val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
 
-    val combinedBackdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop)
 
     Box(
         modifier = modifier.width(IntrinsicSize.Min),
@@ -361,10 +420,11 @@ fun FloatingBottomBar(
                                 padding = maxOf(padding, 40.dp.toPx())
                                 vibrancy()
                                 blur(4.dp.toPx(), 4.dp.toPx())
-                                lens(
-                                    refractionHeight = 24.dp.toPx(),
-                                    refractionAmount = 24.dp.toPx(),
-                                )
+                                // lens()/refraction intentionally omitted here: the shell
+                                // re-renders every scroll frame (content behind changes)
+                                // and refraction was the heaviest GPU pass — the main
+                                // contributor to the reported scroll jank. The pill keeps
+                                // its lens (small area).
                             },
                             highlight = { baseHighlight.value.copy(alpha = 0.75f) },
                             layerBlock = {
@@ -385,7 +445,7 @@ fun FloatingBottomBar(
                     } else Modifier
                 )
                 .then(dampedDragAnimation.modifier)
-                .height(64.dp)
+                .height(56.dp)
                 .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -434,10 +494,16 @@ fun FloatingBottomBar(
             if (isBlurEnabled) {
                 Box(
                     Modifier
-                        .padding(horizontal = 4.dp)
                         .graphicsLayer {
                             val progressOffset = dampedDragAnimation.value * tabWidthPx
-                            translationX = if (isLtr) progressOffset + panelOffset else -progressOffset + panelOffset
+                            // Center the 80dp-wide pill on the active tab: tab centers
+                            // sit at 4dp + (i + 0.5) * tabWidth.
+                            val centerOffset = 4.dp.toPx() + tabWidthPx / 2f - 40.dp.toPx()
+                            translationX = if (isLtr) {
+                                progressOffset + panelOffset + centerOffset
+                            } else {
+                                -progressOffset + panelOffset - centerOffset
+                            }
                         }
                         .drawBackdrop(
                             backdrop = combinedBackdrop,
@@ -455,7 +521,11 @@ fun FloatingBottomBar(
                             layerBlock = {
                                 scaleX = dampedDragAnimation.scaleX
                                 scaleY = dampedDragAnimation.scaleY
-                                val velocity = dampedDragAnimation.velocity / 10f
+                                // |velocity| — the signed version made a rightward drag
+                                // stretch horizontally while a leftward drag squashed
+                                // horizontally AND stretched vertically (asymmetric).
+                                // Inertia deformation should depend on speed only.
+                                val velocity = abs(dampedDragAnimation.velocity) / 10f
                                 scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                                 scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                             },
@@ -475,21 +545,29 @@ fun FloatingBottomBar(
                                 alpha = dampedDragAnimation.pressProgress,
                             )
                         }
-                        .height(56.dp)
-                        .width(tabWidthDp)
+                        // Idle pill: 48dp tall x 50dp wide (landscape, h/w = 0.96,
+                        // fully inside the 56dp shell). Press scales it uniformly
+                        // 1.604x -> 80x77dp: vertical overflow 10.5dp per side hosts
+                        // the inner-shadow dip band; the shape ratio stays constant.
+                        .height(77.dp)
+                        .width(80.dp)
                 )
             } else {
                 Box(
                     Modifier
-                        .padding(horizontal = 4.dp)
                         .graphicsLayer {
                             val progressOffset = dampedDragAnimation.value * tabWidthPx
-                            translationX = if (isLtr) progressOffset + panelOffset else -progressOffset + panelOffset
+                            val centerOffset = 4.dp.toPx() + tabWidthPx / 2f - 40.dp.toPx()
+                            translationX = if (isLtr) {
+                                progressOffset + panelOffset + centerOffset
+                            } else {
+                                -progressOffset + panelOffset - centerOffset
+                            }
                         }
                         .clip(pillShape)
                         .background(accentColor.copy(alpha = 0.15f), pillShape)
-                        .height(56.dp)
-                        .width(tabWidthDp),
+                        .height(77.dp)
+                        .width(80.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     CompositionLocalProvider(LocalContentColor provides accentColor) {

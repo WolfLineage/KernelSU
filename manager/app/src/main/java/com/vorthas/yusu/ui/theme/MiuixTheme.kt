@@ -2,8 +2,10 @@ package com.vorthas.yusu.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -80,7 +82,41 @@ fun MiuixKernelSUTheme(
             CompositionLocalProvider(
                 LocalContentColor provides MiuixTheme.colorScheme.onBackground,
             ) {
-                content()
+                // The file manager renders some Material3 components (AlertDialog,
+                // TextButton, OutlinedTextField, LinearProgressIndicator…) inside
+                // Miuix mode. Without a MaterialTheme they fall back to the un-themed
+                // default scheme — the constant PURPLE the user reported. Derive the
+                // M3 palette from the Miuix one so every component shares the
+                // manager's accent.
+                val miuixColors = MiuixTheme.colorScheme
+                val m3Scheme = if (darkTheme) {
+                    darkColorScheme(
+                        primary = miuixColors.primary,
+                        onPrimary = miuixColors.onPrimary,
+                        secondary = miuixColors.secondary,
+                        surface = miuixColors.surface,
+                        onSurface = miuixColors.onSurface,
+                        surfaceVariant = miuixColors.surfaceVariant,
+                        background = miuixColors.background,
+                        onBackground = miuixColors.onBackground,
+                        error = miuixColors.error,
+                    )
+                } else {
+                    lightColorScheme(
+                        primary = miuixColors.primary,
+                        onPrimary = miuixColors.onPrimary,
+                        secondary = miuixColors.secondary,
+                        surface = miuixColors.surface,
+                        onSurface = miuixColors.onSurface,
+                        surfaceVariant = miuixColors.surfaceVariant,
+                        background = miuixColors.background,
+                        onBackground = miuixColors.onBackground,
+                        error = miuixColors.error,
+                    )
+                }
+                androidx.compose.material3.MaterialTheme(colorScheme = m3Scheme) {
+                    content()
+                }
             }
         }
     )

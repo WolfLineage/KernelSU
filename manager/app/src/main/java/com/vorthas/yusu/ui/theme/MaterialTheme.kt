@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
@@ -20,10 +22,19 @@ fun MaterialKernelSUTheme(
     val systemDarkTheme = isSystemInDarkTheme()
     val darkTheme = appSettings.colorMode.isDark || (appSettings.colorMode.isSystem && systemDarkTheme)
     val amoledMode = appSettings.colorMode.isAmoled
-    val dynamicColor = appSettings.keyColor == 0
-
     val colorScheme = rememberKernelSUColorScheme(
-        seedColor = if (dynamicColor) Color.Unspecified else Color(appSettings.keyColor),
+        seedColor = when {
+            appSettings.keyColor != 0 -> Color(appSettings.keyColor)
+            // MONET modes follow the system wallpaper color, same source as the
+            // Miuix theme's MONET handling.
+            appSettings.colorMode.isMonet ->
+                if (darkTheme) dynamicDarkColorScheme(context).primary
+                else dynamicLightColorScheme(context).primary
+            // No custom key color: adopt the manager's (Miuix) default brand color
+            // #3482FF instead of the Material3 default purple, so both UI modes
+            // share one accent — the "配色统一" request.
+            else -> Color(0xFF3482FF)
+        },
         isDark = darkTheme,
         isAmoled = amoledMode,
         paletteStyle = appSettings.paletteStyle,

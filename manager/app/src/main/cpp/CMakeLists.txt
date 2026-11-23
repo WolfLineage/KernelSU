@@ -14,9 +14,12 @@ add_library(yscore
         SHARED
         jni.cc
         ksu.cc
+        pty.cc
         )
 
-target_include_directories(yscore PRIVATE .)
+# The repository stores cpp/uapi as a symlink; on Windows checkouts it can become a
+# plain text file, so resolve the real kernel uapi directory explicitly as well.
+target_include_directories(yscore PRIVATE . ../../../../..)
 
 find_library(log-lib log)
 

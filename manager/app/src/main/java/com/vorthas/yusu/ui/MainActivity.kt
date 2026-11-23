@@ -80,6 +80,7 @@ import com.vorthas.yusu.ui.screen.about.AboutScreen
 import com.vorthas.yusu.ui.screen.appprofile.AppProfileScreen
 import com.vorthas.yusu.ui.screen.colorpalette.ColorPaletteScreen
 import com.vorthas.yusu.ui.screen.executemoduleaction.ExecuteModuleActionScreen
+import com.vorthas.yusu.ui.screen.filemanager.FileManagerScreen
 import com.vorthas.yusu.ui.screen.flash.FlashScreen
 import com.vorthas.yusu.ui.screen.home.HomePager
 import com.vorthas.yusu.ui.screen.install.InstallScreen
@@ -90,8 +91,10 @@ import com.vorthas.yusu.ui.screen.scriptrun.ScriptRunScreen
 import com.vorthas.yusu.ui.screen.settings.SettingPager
 import com.vorthas.yusu.ui.screen.sulog.SulogScreen
 import com.vorthas.yusu.ui.screen.superuser.SuperUserPager
+import com.vorthas.yusu.ui.screen.terminal.TerminalPage
 import com.vorthas.yusu.ui.screen.template.AppProfileTemplateScreen
 import com.vorthas.yusu.ui.screen.templateeditor.TemplateEditorScreen
+import com.vorthas.yusu.ui.screen.texteditor.TextEditorPage
 import com.vorthas.yusu.ui.theme.KernelSUTheme
 import com.vorthas.yusu.ui.theme.LocalColorMode
 import com.vorthas.yusu.ui.theme.LocalEnableBlur
@@ -271,6 +274,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                 )
                             }
+                            entry<Route.FileManager>(swipeDismiss = swipeDismiss) { FileManagerScreen() }
+                            entry<Route.Terminal>(swipeDismiss = swipeDismiss) { key -> TerminalPage(key.path) }
+                            entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key -> TextEditorPage(key.path) }
                             entry<Route.Home>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.SuperUser>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.Module>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
@@ -318,9 +324,7 @@ fun MainScreen(
         animatePageChanges = !useNavigationRail,
     )
     val isFullFeatured = Natives.isFullFeatured()
-    val pagerMode = PagerInterceptionMode.entries.getOrElse(pagerInterceptionMode) {
-        PagerInterceptionMode.Native
-    }
+    val pagerMode = PagerInterceptionMode.Native
     val interceptPagerGestures = pagerMode == PagerInterceptionMode.CrossAxisInterceptor
     var userScrollEnabled by remember(isFullFeatured) { mutableStateOf(isFullFeatured) }
 
@@ -438,7 +442,15 @@ fun MainScreen(
                         0 -> if (contentReady || isCurrentPage) HomePager(navController, bottomInnerPadding, isCurrentPage)
                         1 -> if (contentReady || isCurrentPage) SuperUserPager(navController, bottomInnerPadding, isCurrentPage)
                         2 -> if (contentReady || isCurrentPage) ModulePager(bottomInnerPadding, isCurrentPage)
-                        3 -> if (contentReady || isCurrentPage) SettingPager(navController, bottomInnerPadding, isCurrentPage)
+                        3 -> if (contentReady || isCurrentPage) FileManagerScreen(bottomInnerPadding) { command ->
+                            mainPagerState.animateToPage(4)
+                            com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)
+                        }
+                        4 -> if (contentReady || isCurrentPage) TerminalPage(
+                            bottomPadding = bottomInnerPadding,
+                            isVisible = isCurrentPage,
+                        )
+                        5 -> if (contentReady || isCurrentPage) SettingPager(navController, bottomInnerPadding, isCurrentPage)
                     }
                 }
             }
