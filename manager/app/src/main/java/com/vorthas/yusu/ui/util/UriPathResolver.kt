@@ -16,7 +16,9 @@ import java.io.File
  */
 object UriPathResolver {
 
-    fun resolve(uri: Uri, displayName: String? = null): String? {
+    fun resolve(uri: Uri, displayName: String? = null): String? = resolveInner(uri, displayName)
+
+    private fun resolveInner(uri: Uri, displayName: String?): String? {
         if (uri.scheme == ContentResolver.SCHEME_FILE) {
             return uri.path?.takeIf(::existsApp)
         }
@@ -41,8 +43,29 @@ object UriPathResolver {
 
         // 3) Last resort: query the provider via root for a path column.
         resolveViaRootShell(uri)?.let { return it }
+
+        // 4) WeChat/QQ hand over opaque Uris with only a display name. Find the
+        //    file by name under the real (non-FUSE) storage root, like MT does.
+        if (!name.isNullOrBlank()) findByNameViaRoot(name)?.let { return it }
         return null
     }
+
+    /** Root search by exact file name under /data/media/0 (covers app-private dirs).
+     *  Uses a single `find` command with the pattern passed as its own argument to
+     *  avoid nested sh -c quoting bugs with spaces/brackets in file names. */
+    private fun findByNameViaRoot(name: String): String? = runCatching {
+        val out = mutableListOf<String>()
+        val err = mutableListOf<String>()
+        val quoted = name.replace("'", "'\\''")
+        // Build the whole command as a single argument with the name single-quoted:
+        // no nested sh -c, so spaces/brackets are safe.
+        val cmd = "find /data/media/0 -maxdepth 8 -type f -name '$quoted' 2>/dev/null | head -n 8"
+        val result = Shell.getShell().newJob().add(cmd).to(out, err).exec()
+        if (!result.isSuccess) return null
+        out.map(String::trim)
+            .firstOrNull(::existsRoot)
+            ?.replaceFirst("/data/media/0", "/storage/emulated/0")
+    }.getOrNull()
 
     // ---- existence helpers ---------------------------------------------------
     private fun existsApp(path: String): Boolean = path.isNotBlank() && File(path).exists()
@@ -67,18 +90,31 @@ object UriPathResolver {
         if (segments.size < 2) return null
         val root = segments[0]
         val rest = segments.drop(1).joinToString("/")
-        val roots = when (root.lowercase()) {
-            "external_files", "external", "external_path", "primary" ->
-                listOf("/storage/emulated/0", "/data/media/0")
-            "downloads" -> listOf("/storage/emulated/0/Download", "/storage/emulated/0")
-            // Unknown provider root: still try the tail as a shared-storage path —
-            // a single root existence check is cheap and covers odd provider names.
-            else -> listOf("/storage/emulated/0")
+
+        // Providers differ in what follows the root name:
+        //  - QQ:  /external_files/Android/data/...        (relative to storage root)
+        //  - WeChat via QQ provider: /external_files/storage/emulated/0/Android/data/...
+        //    (already the full absolute path, minus the leading slash)
+        // Try every plausible mapping and keep the first that really exists.
+        val candidates = linkedMapOf<String, String>()
+        fun add(mapped: String, check: String) {
+            candidates.putIfAbsent(mapped, check)
         }
-        return roots.firstNotNullOfOrNull { base ->
-            val candidate = "$base/$rest"
-            val mapped = candidate.takeIf(::existsRoot)
-            mapped?.replaceFirst("/data/media/0", "/storage/emulated/0")
+        val storageBases = listOf("/storage/emulated/0", "/data/media/0")
+        for (base in storageBases) add(base, "$base/$rest")
+        // rest already contains storage/emulated/0 — it is the full absolute path
+        // (minus leading slash). Root can read /storage/emulated/0 directly.
+        if (rest.startsWith("storage/emulated/0/", ignoreCase = true)) {
+            add("/$rest", "/$rest")
+        }
+        // Some providers drop the root name but keep a full path.
+        if (root.equals("storage", ignoreCase = true)) {
+            val full = segments.joinToString("/")
+            add("/$full", "/$full")
+        }
+
+        return candidates.firstNotNullOfOrNull { (mapped, check) ->
+            check.takeIf(::existsRoot)?.let { mapped }
         }
     }
 

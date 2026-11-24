@@ -171,13 +171,14 @@ class MainActivity : ComponentActivity() {
                     viewModel.endPick()
                     finish()
                 } else {
-                    // Stage into our cache: a content Uri must be readable by the
-                    // caller, and files in Android/data or FUSE dirs may not be.
+                    // Stage into our cache so the caller can read the content Uri.
+                    // Keep the ORIGINAL file name (a fixed "picked" name loses the
+                    // source identity and shows up as "picked.1" in WeChat/QQ).
                     val staged = runCatching {
                         val source = java.io.File(path)
                         val dir = java.io.File(cacheDir, "pick").apply { mkdirs() }
-                        dir.listFiles()?.forEach { it.delete() } // keep only one staged file
-                        val target = java.io.File(dir, "picked${source.extension.let { if (it.isBlank()) "" else ".$it" }}")
+                        dir.listFiles()?.forEach { it.delete() }
+                        val target = java.io.File(dir, source.name)
                         com.vorthas.yusu.data.filemanager.FileManagerRepository.openStream(path).use { input ->
                             target.outputStream().use { output -> input.copyTo(output) }
                         }
@@ -197,6 +198,7 @@ class MainActivity : ComponentActivity() {
                                 uri,
                                 contentResolver.getType(uri) ?: "application/octet-stream",
                             )
+                            .putExtra("yusu_source_path", path)
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
                         )
                         viewModel.endPick()
