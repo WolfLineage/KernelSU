@@ -25,6 +25,7 @@ data class SusfsStatus(
     val installed: Boolean,
     val integrated: Boolean,
     val active: Boolean,
+    val cmdMismatch: Boolean,
     val builtInKernel: Boolean,
     val lkmLoaded: Boolean,
     val kernelRelease: String,
@@ -94,6 +95,26 @@ object SusfsRepository {
     private fun output(vararg cmd: String): String = exec(*cmd).out.joinToString("\n").trim()
 
     fun isRoot(): Boolean = runCatching { Shell.getShell().isRoot }.getOrDefault(false)
+
+    /**
+     * ksu_susfs prints diagnostics to stdout, including failure lines such as
+     * "[-] CMD: '0x555e1', SUSFS operation not supported, please enable it in kernel".
+     * Those lines must never be mistaken for a version, a variant, or a feature.
+     */
+    private fun isErrorLine(line: String): Boolean {
+        val t = line.trim()
+        return t.startsWith("[-]") ||
+            t.startsWith("[!]") ||
+            t.startsWith("[x]") ||
+            t.startsWith("usage:") ||
+            t.contains("not supported", ignoreCase = true)
+    }
+
+    private fun isDiagnosticsLine(line: String): Boolean =
+        line.isBlank() || isErrorLine(line)
+
+    private fun cleanProbe(raw: String): String? =
+        raw.lineSequence().map { it.trim() }.firstOrNull { !isDiagnosticsLine(it) }
 
     fun isIntegrationEnabled(): Boolean =
         ksuApp.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
@@ -287,9 +308,17 @@ object SusfsRepository {
         val integrated = exec("test -f $POST_FS_HOOK").isSuccess &&
             exec("test -L $POST_FS_LINK").isSuccess
         val builtIn = exec("zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_KSU_SUSFS=y'").isSuccess
-        val version = output("$SUSFS_BIN show version 2>/dev/null").lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
-        val variant = output("$SUSFS_BIN show variant 2>/dev/null").lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
-        val featureCount = output("$SUSFS_BIN show enabled_features 2>/dev/null").lines().count { it.isNotBlank() }
+        val versionRaw = output("$SUSFS_BIN show version 2>/dev/null")
+        val variantRaw = output("$SUSFS_BIN show variant 2>/dev/null")
+        val featuresRaw = output("$SUSFS_BIN show enabled_features 2>/dev/null")
+        val version = cleanProbe(versionRaw)
+        val variant = cleanProbe(variantRaw)
+        val featureCount = featuresRaw.lineSequence().count { !isDiagnosticsLine(it) }
+        // Only flag a mismatch when the CLI actually printed an error/diagnostic line.
+        // An empty probe (CLI not installed / no root) is NOT an ABI mismatch.
+        val cmdMismatch = sequenceOf(versionRaw, variantRaw, featuresRaw)
+            .flatMap { it.lineSequence() }
+            .any { isErrorLine(it) }
         // /proc/modules hides the guard module, so the ksu_susfs CLI is the authoritative probe.
         val active = version != null && featureCount > 0
         val lkmLoaded = active && !builtIn
@@ -298,6 +327,7 @@ object SusfsRepository {
             installed = installed,
             integrated = integrated,
             active = active,
+            cmdMismatch = cmdMismatch,
             builtInKernel = builtIn,
             lkmLoaded = lkmLoaded,
             kernelRelease = release,
@@ -366,8 +396,9 @@ object SusfsRepository {
             install().getOrThrow()
         }
         if (!engineToolsReady()) return@runCatching null
-        val version = output("$SUSFS_BIN show version 2>/dev/null").lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
-        val features = output("$SUSFS_BIN show enabled_features 2>/dev/null").lines().count { it.isNotBlank() }
+        val version = cleanProbe(output("$SUSFS_BIN show version 2>/dev/null"))
+        val features = output("$SUSFS_BIN show enabled_features 2>/dev/null")
+            .lineSequence().count { !isDiagnosticsLine(it) }
         if (version != null && features > 0) return@runCatching null // already active
         val result = exec("$CLI --load-lkm")
         val text = (result.out + result.err).joinToString("\n").trim()

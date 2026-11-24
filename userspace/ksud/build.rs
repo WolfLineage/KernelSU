@@ -10,10 +10,10 @@ const BOOTSTRAP_OBJECT: &str = "lkm_image_bootstrap.o";
 const PREPARED_BOOTSTRAP_OBJECT: &str = ".lkm_image_bootstrap.o";
 
 fn get_git_version() -> Result<(u32, String), std::io::Error> {
-    // Fixed semantic version 34207 (v3.4.2), matching the manager APK versionCode
+    // Fixed semantic version 34307 (v3.4.3), matching the manager APK versionCode
     // and kernel/Kbuild KSU_VERSION. The old 30000 + git commit count drifted and
     // made the flashed LKM version disagree with the manager display.
-    let version_code: u32 = 34207;
+    let version_code: u32 = 34307;
 
     let version_name = String::from_utf8(
         Command::new("git")

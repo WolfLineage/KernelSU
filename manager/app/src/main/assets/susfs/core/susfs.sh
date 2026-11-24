@@ -266,6 +266,23 @@ show_status() {
 	susfs show enabled_features
 }
 
+status_report() {
+	# Refresh the live status line consumed by the manager's status page.
+	# Keep it silent: boot hooks redirect this into last-load.log.
+	local ver variant features stamp
+	ver=$(susfs show version 2>/dev/null | head -n1)
+	variant=$(susfs show variant 2>/dev/null | head -n1)
+	features=$(susfs show enabled_features 2>/dev/null | grep -c .)
+	# Do not record CLI diagnostics as a healthy status.
+	case "$ver$variant" in
+		*"not supported"*|*'[-]'*) return 0 ;;
+	esac
+	[ -z "$ver" ] && return 0
+	stamp=$(date '+%a %b %e %H:%M:%S %Z %Y' 2>/dev/null)
+	printf 'status: active | susfs %s (%s) | features: %s | %s\n' \
+		"$ver" "${variant:-unknown}" "$features" "$stamp" > "$NATIVE_DIR/status.txt"
+}
+
 show_help () {
 	banner
 	echo "[%] $( grep '^description=' $MODDIR/module.prop | sed 's/description=//' )"

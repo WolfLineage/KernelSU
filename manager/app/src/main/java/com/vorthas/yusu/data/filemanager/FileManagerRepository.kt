@@ -91,7 +91,8 @@ data class FilePage(
 object FileManagerRepository {
     private const val TAG = "FileManagerRepo"
 
-    fun defaultLeft(): String = "/sdcard"
+    /** Canonical primary-storage path; avoid the /sdcard symlink so path-derived checks are stable. */
+    fun defaultLeft(): String = "/storage/emulated/0"
 
     fun defaultRight(): String = "/data/adb"
 

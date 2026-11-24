@@ -105,7 +105,7 @@ fun SusfsScreenMaterial(state: SusfsScreenState, actions: SusfsScreenActions) {
                     add {
                         SegmentedListItem(
                             onClick = actions.onApply,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             headlineContent = { Text(stringResource(R.string.susfs_apply_now)) },
                             leadingContent = { Icon(Icons.Filled.Refresh, null) },
                         )
@@ -132,7 +132,7 @@ fun SusfsScreenMaterial(state: SusfsScreenState, actions: SusfsScreenActions) {
                             icon = Icons.Filled.LayersClear,
                             title = stringResource(R.string.susfs_hide_mounts),
                             checked = status?.hideMounts == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             onCheckedChange = { actions.onToggle("HIDE_SUS_MNTS_NON_SU", it) },
                         )
                     },
@@ -141,7 +141,7 @@ fun SusfsScreenMaterial(state: SusfsScreenState, actions: SusfsScreenActions) {
                             icon = Icons.Filled.Description,
                             title = stringResource(R.string.susfs_logging),
                             checked = status?.logging == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             onCheckedChange = { actions.onToggle("ENABLE_LOG", it) },
                         )
                     },
@@ -150,7 +150,7 @@ fun SusfsScreenMaterial(state: SusfsScreenState, actions: SusfsScreenActions) {
                             icon = Icons.Filled.Security,
                             title = stringResource(R.string.susfs_avc_spoof),
                             checked = status?.avcSpoof == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             onCheckedChange = { actions.onToggle("ENABLE_AVC_LOG_SPOOFING", it) },
                         )
                     },
@@ -241,7 +241,7 @@ fun SusfsScreenMaterial(state: SusfsScreenState, actions: SusfsScreenActions) {
                 content = listOf {
                     SegmentedListItem(
                         onClick = actions.onResetConfigs,
-                        enabled = !state.busy && status?.integrated == true,
+                        enabled = !state.busy && status?.active == true,
                         headlineContent = { Text(stringResource(R.string.susfs_reset_configs)) },
                         leadingContent = { Icon(Icons.Filled.Restore, null) },
                     )

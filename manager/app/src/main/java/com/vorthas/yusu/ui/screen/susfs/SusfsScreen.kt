@@ -52,9 +52,10 @@ fun SusfsScreen() {
 @Composable
 fun susfsStatusHeadline(status: SusfsStatus?): String = when {
     status == null -> stringResource(R.string.susfs_status_loading)
+    status.cmdMismatch -> stringResource(R.string.susfs_status_cmd_mismatch)
+    status.active -> stringResource(R.string.susfs_status_active)
     !status.integrated -> stringResource(R.string.susfs_status_not_integrated)
     !status.installed -> stringResource(R.string.susfs_status_not_installed)
-    status.active -> stringResource(R.string.susfs_status_active)
     !status.builtInKernel && status.integrated -> stringResource(R.string.susfs_status_pending_load)
     else -> stringResource(R.string.susfs_status_inactive)
 }

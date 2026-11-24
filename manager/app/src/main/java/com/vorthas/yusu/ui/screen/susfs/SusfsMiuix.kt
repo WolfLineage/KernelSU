@@ -134,7 +134,7 @@ fun SusfsScreenMiuix(state: SusfsScreenState, actions: SusfsScreenActions) {
                     Card(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         BasicComponent(
                             title = stringResource(R.string.susfs_apply_now),
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             startAction = { Icon(Icons.Filled.Refresh, contentDescription = null, tint = colorScheme.onBackground) },
                             onClick = actions.onApply,
                         )
@@ -156,21 +156,21 @@ fun SusfsScreenMiuix(state: SusfsScreenState, actions: SusfsScreenActions) {
                         SwitchPreference(
                             title = stringResource(R.string.susfs_hide_mounts),
                             checked = status?.hideMounts == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             startAction = { Icon(Icons.Filled.LayersClear, contentDescription = null, tint = colorScheme.onBackground) },
                             onCheckedChange = { actions.onToggle("HIDE_SUS_MNTS_NON_SU", it) },
                         )
                         SwitchPreference(
                             title = stringResource(R.string.susfs_logging),
                             checked = status?.logging == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             startAction = { Icon(Icons.Filled.Description, contentDescription = null, tint = colorScheme.onBackground) },
                             onCheckedChange = { actions.onToggle("ENABLE_LOG", it) },
                         )
                         SwitchPreference(
                             title = stringResource(R.string.susfs_avc_spoof),
                             checked = status?.avcSpoof == true,
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             startAction = { Icon(Icons.Filled.Security, contentDescription = null, tint = colorScheme.onBackground) },
                             onCheckedChange = { actions.onToggle("ENABLE_AVC_LOG_SPOOFING", it) },
                         )
@@ -247,7 +247,7 @@ fun SusfsScreenMiuix(state: SusfsScreenState, actions: SusfsScreenActions) {
                     Card(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         BasicComponent(
                             title = stringResource(R.string.susfs_reset_configs),
-                            enabled = !state.busy && status?.integrated == true,
+                            enabled = !state.busy && status?.active == true,
                             startAction = { Icon(Icons.Filled.Restore, contentDescription = null, tint = colorScheme.onBackground) },
                             onClick = actions.onResetConfigs,
                         )
