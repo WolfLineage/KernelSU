@@ -36,6 +36,8 @@ data class FileManagerUiState(
     val message: String? = null,
     val bookmarkPaths: List<String> = emptyList(),
     val bookmarksOpen: Boolean = false,
+    /** Launched as a file picker: title shows "Select file" instead of nagging dialogs. */
+    val pickMode: Boolean = false,
 )
 
 data class FileManagerActions(

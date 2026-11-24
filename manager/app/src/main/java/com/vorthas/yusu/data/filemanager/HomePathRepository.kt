@@ -12,12 +12,22 @@ internal fun homePathKey(pane: Int): String = if (pane == 0) "home_left" else "h
  * The two panes are stored under separate keys so setting a home on the focused
  * pane can never overwrite the other pane's home.
  */
+internal const val LAST_DIR_KEY = "last_dir"
+
 class HomePathRepository(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("fm_home_paths", Context.MODE_PRIVATE)
 
     /** [pane] must be 0 (left) or 1 (right). Returns null when no home was set. */
     fun get(pane: Int): String? = prefs.getString(key(pane), null)?.takeIf { it.isNotBlank() }
+
+    /** Directory the user last browsed, restored when opened as a file picker (MT style). */
+    fun getLastDir(): String? = prefs.getString(LAST_DIR_KEY, null)?.takeIf { it.isNotBlank() }
+
+    fun setLastDir(path: String) {
+        if (path.isBlank()) return
+        prefs.edit { putString(LAST_DIR_KEY, path) }
+    }
 
     fun set(pane: Int, path: String) {
         if (pane !in 0..1 || path.isBlank()) return

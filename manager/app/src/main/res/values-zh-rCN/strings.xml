@@ -504,6 +504,7 @@
     <string name="all_files_access_message">请授予所有文件访问权限，以便管理器能打开其他应用下载的文件并定位到它们的真实位置。</string>
     <string name="all_files_access_grant">前往设置</string>
     <string name="all_files_access_later">稍后</string>
-    <string name="pick_file_hint">请选择要发送给该应用的文件</string>
+    <string name="pick_file_hint">请选择要发送给该应用的文件，单击文件即返回</string>
+    <string name="pick_file_title">选择文件</string>
     <string name="install_apk_prompt">安装此 APK？</string>
 </resources>

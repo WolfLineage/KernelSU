@@ -171,17 +171,32 @@ class MainActivity : ComponentActivity() {
                     viewModel.endPick()
                     finish()
                 } else {
-                    val uri = runCatching {
-                        androidx.core.content.FileProvider.getUriForFile(
-                            this@MainActivity,
-                            "${packageName}.fileprovider",
-                            java.io.File(path),
-                        )
+                    // Stage into our cache: a content Uri must be readable by the
+                    // caller, and files in Android/data or FUSE dirs may not be.
+                    val staged = runCatching {
+                        val source = java.io.File(path)
+                        val dir = java.io.File(cacheDir, "pick").apply { mkdirs() }
+                        dir.listFiles()?.forEach { it.delete() } // keep only one staged file
+                        val target = java.io.File(dir, "picked${source.extension.let { if (it.isBlank()) "" else ".$it" }}")
+                        com.vorthas.yusu.data.filemanager.FileManagerRepository.openStream(path).use { input ->
+                            target.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        target
                     }.getOrNull()
+                    val uri = staged?.let {
+                        runCatching {
+                            androidx.core.content.FileProvider.getUriForFile(
+                                this@MainActivity, "${packageName}.fileprovider", it
+                            )
+                        }.getOrNull()
+                    }
                     if (uri != null) {
                         setResult(
                             android.app.Activity.RESULT_OK,
-                            Intent().setDataAndType(uri, contentResolver.getType(uri))
+                            Intent().setDataAndType(
+                                uri,
+                                contentResolver.getType(uri) ?: "application/octet-stream",
+                            )
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
                         )
                         viewModel.endPick()

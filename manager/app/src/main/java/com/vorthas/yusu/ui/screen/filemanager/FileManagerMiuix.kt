@@ -76,7 +76,7 @@ internal fun FileManagerScreenMiuix(
             // Same Miuix TopAppBar component other pages use, so title size/position match.
             TopAppBar(
                 color = MiuixTheme.colorScheme.surface,
-                title = stringResource(R.string.file_manager),
+                title = stringResource(if (state.pickMode) R.string.pick_file_title else R.string.file_manager),
                 actions = {
                     IconButton(onClick = actions.onShowBookmarks) {
                         Icon(Icons.Filled.Bookmark, contentDescription = "书签", tint = MiuixTheme.colorScheme.onBackground)

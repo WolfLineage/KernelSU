@@ -5,6 +5,7 @@ import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.io.SuFile
 import com.topjohnwu.superuser.io.SuFileInputStream
 import com.topjohnwu.superuser.io.SuFileOutputStream
+import com.vorthas.yusu.ksuApp
 import org.apache.commons.compress.archivers.ArchiveEntry
 import org.apache.commons.compress.archivers.ArchiveInputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -297,16 +298,66 @@ object FileManagerRepository {
             .take(200)
     }
 
-    /** Install an APK through the root package manager. Returns null on success. */
-    fun installApk(path: String): String? {
-        val result = runCatching {
-            exec("pm install -r --user 0 -- ${path.shellQuote()} 2>&1")
-        }.getOrElse { return it.message ?: "Install failed" }
+/** Structured outcome of an APK install, so the UI can react per failure type. */
+sealed class InstallResult {
+    data object Success : InstallResult()
+    /** System server could not read the file (FUSE/private dir). */
+    data class Unreadable(val detail: String) : InstallResult()
+    /** Installed version is newer than the APK; pass [allowDowngrade] to retry with -d. */
+    data class Downgrade(val detail: String, val allowDowngrade: Boolean = false) : InstallResult()
+    /** Target app is currently running; [forceStop] retries after stopping it. */
+    data class AppRunning(val packageName: String, val detail: String, val forceStop: Boolean = false) : InstallResult()
+    data class SignatureMismatch(val detail: String) : InstallResult()
+    data class InsufficientStorage(val detail: String) : InstallResult()
+    data class ParseFailed(val detail: String) : InstallResult()
+    data class Failed(val code: String?, val detail: String) : InstallResult()
+}
+
+    /** Install an APK through the root package manager. */
+    fun installApk(path: String, allowDowngrade: Boolean = false, forceStop: Boolean = false): InstallResult {
+        // system_server cannot read APKs from FUSE paths (/sdcard, Android/data/...):
+        // "System server has no access to read file context u:object_r:fuse:s0".
+        // Copy into /data/local/tmp (which pm can read) and install from there.
+        val staged = "/data/local/tmp/yusu_install_${System.currentTimeMillis()}.apk"
+        val stagedOk = runCatching {
+            exec("cp -- ${path.shellQuote()} ${staged.shellQuote()} && chmod 0644 ${staged.shellQuote()}")
+        }.getOrNull()?.isSuccess == true
+        if (!stagedOk) {
+            exec("rm -f ${staged.shellQuote()}")
+            return InstallResult.Unreadable("Cannot read APK (FUSE/private dir)")
+        }
+
+        // Stop the target app when requested, so an in-use APK can be replaced.
+        if (forceStop) {
+            apkInfo(path, ksuApp.cacheDir, ksuApp.packageManager)?.packageName?.let { pkg ->
+                if (pkg.isNotBlank()) runCatching { exec("am force-stop ${pkg.shellQuote()}") }
+            }
+        }
+
+        val flag = if (allowDowngrade) "-d" else ""
+        val command = buildString {
+            append("pm install -r --user 0 ")
+            if (flag.isNotEmpty()) append("$flag ")
+            append("-- ${staged.shellQuote()} 2>&1")
+        }
+        val result = runCatching { exec(command) }
+            .getOrElse { return InstallResult.Failed(null, it.message ?: "Install failed") }
+        exec("rm -f ${staged.shellQuote()}")
+
         val output = (result.out + result.err).joinToString("\n").trim()
+        val code = Regex("Failure\\s*\\[(INSTALL_FAILED_[A-Z0-9_]+)\\]", RegexOption.IGNORE_CASE)
+            .find(output)?.groupValues?.get(1)
+        val detail = output.lineSequence().lastOrNull { it.isNotBlank() }?.take(300) ?: ""
         return when {
-            !result.isSuccess && output.isBlank() -> "Install failed"
-            output.contains("Success", ignoreCase = true) -> null
-            else -> output.lineSequence().lastOrNull { it.isNotBlank() } ?: "Install failed"
+            output.contains("Success", ignoreCase = true) && result.isSuccess -> InstallResult.Success
+            code == "INSTALL_FAILED_VERSION_DOWNGRADE" -> InstallResult.Downgrade(detail)
+            code == "INSTALL_FAILED_UPDATE_INCOMPATIBLE" || code == "INSTALL_FAILED_SIGNATURE_MISMATCH" ->
+                InstallResult.SignatureMismatch(detail)
+            code == "INSTALL_FAILED_INSUFFICIENT_STORAGE" -> InstallResult.InsufficientStorage(detail)
+            code?.contains("PARSE") == true || code == "INSTALL_FAILED_INVALID_APK" -> InstallResult.ParseFailed(detail)
+            code == "INSTALL_FAILED_USER_RESTRICTED" || code == "INSTALL_FAILED_VERIFICATION_FAILURE" ->
+                InstallResult.Failed(code, detail)
+            else -> InstallResult.Failed(code, detail)
         }
     }
 

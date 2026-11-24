@@ -89,8 +89,16 @@ fun FileManagerScreen(
     // Picker mode: backing out cancels the request to the calling app.
     androidx.activity.compose.BackHandler(enabled = pickMode) { onPick(null) }
 
+    // Picker mode: start where the user last browsed (MT Manager behaviour), so
+    // files in bookmarked/private folders are immediately reachable. No dialog —
+    // the top bar title shows "Select file" for the whole session.
     LaunchedEffect(pickMode) {
-        if (pickMode) Toast.makeText(context, R.string.pick_file_hint, Toast.LENGTH_SHORT).show()
+        if (pickMode) {
+            viewModel.setPickMode(true)
+            com.vorthas.yusu.data.filemanager.HomePathRepository(context).getLastDir()?.let { last ->
+                viewModel.navigate(state.activePane, last)
+            }
+        }
     }
 
     LaunchedEffect(state.message) {

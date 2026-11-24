@@ -168,6 +168,7 @@ class FileManagerViewModel : ViewModel() {
 
     fun navigate(pane: Int, path: String, fromHistory: Boolean = false) {
         if (path.isBlank()) return
+        if (pane == 0) homePaths.setLastDir(path)
         val current = _state.value.panes.getOrNull(pane)?.path.orEmpty()
         if (!fromHistory && path != current) {
             backStacks[pane].addLast(current)
@@ -453,19 +454,54 @@ class FileManagerViewModel : ViewModel() {
     }
 
     /** Root package-manager install of an APK; result is surfaced via [message]. */
-    fun installApk(path: String) = viewModelScope.launch(Dispatchers.IO) {
-        // Immediate acknowledgement so the action never feels like a no-op.
-        withContext(kotlinx.coroutines.Dispatchers.Main) {
+    fun installApk(
+        path: String,
+        allowDowngrade: Boolean = false,
+        forceStop: Boolean = false,
+    ): kotlinx.coroutines.Job = viewModelScope.launch(Dispatchers.IO) {
+        withContext(Dispatchers.Main) {
+            _state.update { it.copy(busy = true) }
             message(ksuApp.getString(com.vorthas.yusu.R.string.installing_apk))
         }
-        val error = FileManagerRepository.installApk(path)
-        val result = if (error == null) {
-            ksuApp.getString(com.vorthas.yusu.R.string.install_success)
-        } else {
-            "${ksuApp.getString(com.vorthas.yusu.R.string.install_failed)}: $error"
+        val outcome = FileManagerRepository.installApk(path, allowDowngrade, forceStop)
+        var retry: (() -> Unit)? = null
+        val msg: String = when (outcome) {
+            is FileManagerRepository.InstallResult.Success ->
+                ksuApp.getString(com.vorthas.yusu.R.string.install_success)
+
+            is FileManagerRepository.InstallResult.Downgrade ->
+                if (!allowDowngrade) {
+                    // Auto-retry with -d once: the user explicitly tapped install.
+                    retry = { installApk(path, allowDowngrade = true, forceStop = forceStop) }
+                    ksuApp.getString(com.vorthas.yusu.R.string.installing_apk)
+                } else "降级安装失败：${outcome.detail}"
+
+            is FileManagerRepository.InstallResult.AppRunning ->
+                if (!forceStop) {
+                    retry = { installApk(path, allowDowngrade = allowDowngrade, forceStop = true) }
+                    ksuApp.getString(com.vorthas.yusu.R.string.installing_apk)
+                } else "应用正在运行且无法停止：${outcome.detail}"
+
+            is FileManagerRepository.InstallResult.Unreadable ->
+                "无法读取 APK（特权目录）：${outcome.detail}"
+            is FileManagerRepository.InstallResult.SignatureMismatch ->
+                "签名冲突，请先卸载旧版：${outcome.detail}"
+            is FileManagerRepository.InstallResult.InsufficientStorage ->
+                "存储空间不足：${outcome.detail}"
+            is FileManagerRepository.InstallResult.ParseFailed ->
+                "APK 解析失败：${outcome.detail}"
+            is FileManagerRepository.InstallResult.Failed ->
+                "${ksuApp.getString(com.vorthas.yusu.R.string.install_failed)}: " +
+                    (outcome.code?.let { "$it " } ?: "") + outcome.detail
         }
-        withContext(kotlinx.coroutines.Dispatchers.Main) { message(result) }
+        withContext(Dispatchers.Main) {
+            _state.update { it.copy(busy = false) }
+            message(msg)
+            retry?.invoke()
+        }
     }
+
+    fun setPickMode(enabled: Boolean) = _state.update { it.copy(pickMode = enabled) }
 
     fun message(text: String) = _state.update { it.copy(message = text, busy = false) }
 

@@ -309,7 +309,7 @@ internal fun FileManagerScreenMaterial(
     Scaffold(
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text(stringResource(R.string.file_manager)) },
+                title = { Text(stringResource(if (state.pickMode) R.string.pick_file_title else R.string.file_manager)) },
                 navigationIcon = {
                     IconButton(onClick = actions.onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
