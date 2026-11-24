@@ -130,7 +130,8 @@ class MainActivity : ComponentActivity() {
     private val intentChannel = Channel<Intent>(capacity = Channel.BUFFERED)
     private var contentReady = false
     private var splashStartedAt = 0L
-    private val splashAnimationDurationMs = 500L
+    // External file opens skip the decorative splash delay so the jump feels instant.
+    private var splashAnimationDurationMs = 500L
 
 
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -138,6 +139,10 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         splashStartedAt = SystemClock.uptimeMillis()
         super.onCreate(savedInstanceState)
+        // Opening a file from another app should land immediately, not wait out the splash.
+        if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_INSTALL_PACKAGE) {
+            splashAnimationDurationMs = 0L
+        }
         // The switch defaults to off; enforce it once the manager is opened so the
         // default also applies on devices where the boot receiver is disabled.
         lifecycleScope.launch(Dispatchers.IO) { applyUsbDebuggingPreference() }
@@ -203,6 +208,7 @@ class MainActivity : ComponentActivity() {
                 LocalUiMode provides uiMode,
             ) {
                 KernelSUTheme(appSettings = appSettings, uiMode = uiMode) {
+                    com.vorthas.yusu.ui.component.AllFilesAccessGate()
                     IntentDispatcher(intentChannel = intentChannel)
                     val swipeDismiss = if (uiState.enableSwipeDismiss) {
                         if (LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) {
