@@ -9,21 +9,45 @@ import com.topjohnwu.superuser.Shell
 import java.io.File
 
 /**
- * Resolve an external ACTION_VIEW Uri to a filesystem path the file manager can
- * reveal. Handles file://, MediaStore, and SAF document Uris; falls back to
- * copying the stream into our cache so the file is still reachable.
+ * Resolve an external ACTION_VIEW Uri to the REAL filesystem path the file manager
+ * can reveal. The manager has root but no scoped-storage permission, so app-level
+ * File.exists()/MediaStore queries often fail — all existence checks and Uri queries
+ * therefore go through the root shell. Only as a last resort do we copy into cache.
  */
 object UriPathResolver {
 
-    /** Returns a path that exists, or null if the Uri cannot be read at all. */
+    /** Returns a real, existing path, or null if the Uri cannot be read at all. */
     fun resolve(uri: Uri, displayName: String? = null): String? {
         if (uri.scheme == ContentResolver.SCHEME_FILE) {
-            return uri.path?.takeIf { File(it).exists() }
+            return uri.path?.takeIf(::existsViaRoot)
         }
-        resolveMediaStore(uri)?.let { return it }
+        val name = displayName ?: uri.getFileName(ksuApp)
+
+        // 1) Root-shell MediaStore/content query — works for QQ/download providers
+        //    even when the app identity is denied access to the DATA column.
+        resolveViaRootShell(uri)?.let { return it }
+
+        // 2) Document Uris (SAF) decoded to their real storage path.
         resolveDocument(uri)?.let { return it }
-        // Last resort: make a local copy so the file manager can reveal it.
-        return copyToCache(uri, displayName ?: uri.getFileName(ksuApp) ?: "file")
+
+        // 3) Locate by display name under shared storage. Downloaders (QQ, browsers)
+        //    hand over opaque content Uris but the file is really on /sdcard.
+        if (!name.isNullOrBlank()) {
+            findByNameViaRoot(name)?.let { return it }
+            resolveMediaStoreByName(name)?.let { return it }
+        }
+
+        // 4) Last resort: local copy (reveal will land in our cache dir).
+        return copyToCache(uri, name ?: "file")
+    }
+
+    /** Root-shell existence check: app identity has no storage permission. */
+    private fun existsViaRoot(path: String): Boolean {
+        if (path.isBlank()) return false
+        val quoted = path.replace("'", "'\\''")
+        return Shell.getShell().newJob()
+            .add("sh -c '[ -e '\''$quoted'\'' ]'")
+            .exec().isSuccess
     }
 
     private fun resolveMediaStore(uri: Uri): String? = runCatching {
@@ -32,17 +56,14 @@ object UriPathResolver {
         ksuApp.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
-                if (idx >= 0) cursor.getString(idx)?.takeIf { File(it).exists() } else null
+                if (idx >= 0) cursor.getString(idx)?.takeIf(::existsViaRoot) else null
             } else null
         }
     }.getOrNull()
-        // Scoped storage can deny the DATA column to the app identity; the root
-        // shell can still query MediaStore reliably.
-        ?: resolveViaRootShell(uri)
 
-    private fun resolveDocument(uri: Uri): String? {
-        if (!DocumentsContract.isDocumentUri(ksuApp, uri)) return null
-        return when (uri.authority) {
+    private fun resolveDocument(uri: Uri): String? = runCatching {
+        if (!DocumentsContract.isDocumentUri(ksuApp, uri)) return@runCatching null
+        val candidate = when (uri.authority) {
             "com.android.externalstorage.documents" -> {
                 val docId = DocumentsContract.getDocumentId(uri)
                 val parts = docId.split(":", limit = 2)
@@ -53,33 +74,64 @@ object UriPathResolver {
             "com.android.providers.downloads.documents" -> {
                 val docId = DocumentsContract.getDocumentId(uri)
                 when {
-                    docId.startsWith("raw:") -> docId.removePrefix("raw:").takeIf { File(it).exists() }
+                    docId.startsWith("raw:") -> docId.removePrefix("raw:")
                     docId.startsWith("msf:") -> {
-                        val id = docId.removePrefix("msf:").toLongOrNull() ?: return null
+                        val id = docId.removePrefix("msf:").toLongOrNull() ?: return@runCatching null
                         val contentUri = android.content.ContentUris.withAppendedId(
                             MediaStore.Downloads.EXTERNAL_CONTENT_URI, id
                         )
-                        resolveMediaStore(contentUri)
+                        resolveViaRootShell(contentUri)
                     }
                     else -> null
                 }
             }
             else -> null
-        }?.takeIf { File(it).exists() }
-    }
+        }
+        candidate?.takeIf(::existsViaRoot)
+    }.getOrNull()
 
-    /** Query MediaStore via the root shell when the app-level query is denied. */
+    /**
+     * Query any content Uri via the root shell. Extract a real path from common
+     * columns (_data, data, ...); no authority restriction so QQ/downloader Uris work.
+     */
     private fun resolveViaRootShell(uri: Uri): String? = runCatching {
-        if (uri.authority != MediaStore.AUTHORITY) return null
         val out = mutableListOf<String>()
         val err = mutableListOf<String>()
         val result = Shell.getShell().newJob()
-            .add("content query --uri $uri --projection _data")
+            .add("content query --uri '$uri'")
+            .to(out, err).exec()
+        if (!result.isSuccess) return null
+        out.joinToString("\n").lineSequence()
+            .flatMap { line -> Regex("(?:_?data|[Dd]ata)=([^,}]+)").findAll(line).map { it.groupValues[1].trim() } }
+            .map { it.removeSurrounding("\"") }
+            .firstOrNull(::existsViaRoot)
+    }.getOrNull()
+
+    /** Search shared storage for the exact display name using the root shell. */
+    private fun findByNameViaRoot(name: String): String? = runCatching {
+        val safe = name.replace("'", "'\\''")
+        val out = mutableListOf<String>()
+        val err = mutableListOf<String>()
+        val cmd = "find /sdcard -type f -name '$safe' 2>/dev/null | head -n 5"
+        val result = Shell.getShell().newJob().add("sh -c '$cmd'").to(out, err).exec()
+        if (!result.isSuccess) return null
+        out.map(String::trim).firstOrNull(::existsViaRoot)
+    }.getOrNull()
+
+    /** Query MediaStore Downloads by display name via root shell. */
+    private fun resolveMediaStoreByName(name: String): String? = runCatching {
+        val safe = name.replace("'", "'\\''")
+        val out = mutableListOf<String>()
+        val err = mutableListOf<String>()
+        val sel = "_display_name='$safe'"
+        val result = Shell.getShell().newJob()
+            .add("content query --uri content://media/external/downloads --projection _data --where \"$sel\"")
             .to(out, err).exec()
         if (!result.isSuccess) return null
         out.joinToString("\n").lineSequence()
             .mapNotNull { line -> Regex("_data=([^,}]+)").find(line)?.groupValues?.get(1)?.trim() }
-            .firstOrNull { File(it).exists() }
+            .map { it.removeSurrounding("\"") }
+            .firstOrNull(::existsViaRoot)
     }.getOrNull()
 
     private fun copyToCache(uri: Uri, displayName: String): String? = runCatching {
@@ -92,11 +144,10 @@ object UriPathResolver {
             } != null
         }.getOrDefault(false)
         if (!appRead) {
-            // Root shell can read content Uris the app has no direct grant for.
             val result = Shell.getShell().newJob()
                 .add("sh -c 'content read --uri \"$uri\" > \"${target.absolutePath}\"'")
                 .exec()
-            if (!result.isSuccess || !target.exists()) return null
+            if (!result.isSuccess || !existsViaRoot(target.absolutePath)) return null
         }
         target.absolutePath
     }.getOrNull()

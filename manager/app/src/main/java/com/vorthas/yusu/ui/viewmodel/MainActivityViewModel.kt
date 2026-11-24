@@ -30,6 +30,20 @@ class MainActivityViewModel(
     val uiState: StateFlow<MainActivityUiState> = _uiState.asStateFlow()
     val selectedMainPage: StateFlow<Int> = mainPageState.selectedPage
 
+    /** File path to reveal in the manager's file-manager tab after an external open. */
+    private val _pendingRevealPath = MutableStateFlow<String?>(null)
+    val pendingRevealPath: StateFlow<String?> = _pendingRevealPath.asStateFlow()
+    private val _revealRequestSeq = MutableStateFlow(0L)
+    val revealRequestSeq: StateFlow<Long> = _revealRequestSeq.asStateFlow()
+
+    fun requestReveal(path: String, page: Int = FILE_MANAGER_PAGE) {
+        mainPageState.updateSelectedPage(page)
+        _pendingRevealPath.value = path
+        _revealRequestSeq.value += 1
+    }
+
+    fun consumeReveal() { _pendingRevealPath.value = null }
+
     init {
         prefs.registerOnSharedPreferenceChangeListener(listener)
     }
@@ -57,7 +71,8 @@ class MainActivityViewModel(
         )
     }
 
-    private companion object {
+    companion object {
+        const val FILE_MANAGER_PAGE = 3
         val observedKeys = setOf(
             "color_mode",
             "key_color",

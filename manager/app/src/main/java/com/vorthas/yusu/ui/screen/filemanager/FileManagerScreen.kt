@@ -32,6 +32,8 @@ fun FileManagerScreen(
     onRunScript: (String) -> Unit = {},
     initialPath: String? = null,
     requestId: Long = 0L,
+    /** True for the main-screen pager instance: consume external open requests. */
+    usePendingReveal: Boolean = false,
 ) {
     val navigator = LocalNavigator.current
     val uiMode = LocalUiMode.current
@@ -39,6 +41,8 @@ fun FileManagerScreen(
     val viewModel = viewModel<FileManagerViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val activityViewModel = com.vorthas.yusu.ui.LocalActivityViewModel.current
+    val pendingReveal by activityViewModel.pendingRevealPath.collectAsStateWithLifecycle()
     var apkTarget by remember { mutableStateOf<String?>(null) }
     var apkInfoText by remember { mutableStateOf<String?>(null) }
     val apkDialog = rememberConfirmDialog(
@@ -46,11 +50,16 @@ fun FileManagerScreen(
         onDismiss = { apkTarget = null },
     )
 
-    // External "Open with": reveal the file in the active pane (navigate to its
-    // parent and highlight it). requestId changes even when the same file is opened
-    // again, so the effect re-runs instead of being de-duplicated by navigation.
-    LaunchedEffect(requestId, initialPath) {
-        if (initialPath != null) viewModel.reveal(state.activePane, initialPath)
+    // External "Open with" → reveal in the active pane. Two entry points:
+    //  - the main-screen pager consumes MainActivityViewModel.pendingRevealPath
+    //  - a standalone Route.FileManager can still be opened with initialPath
+    // A changing key re-runs the effect even for the same file opened twice.
+    LaunchedEffect(requestId, initialPath, pendingReveal, usePendingReveal) {
+        val path = if (usePendingReveal) pendingReveal else initialPath
+        if (path != null) {
+            viewModel.reveal(state.activePane, path)
+            if (usePendingReveal) activityViewModel.consumeReveal()
+        }
     }
     LaunchedEffect(apkTarget) {
         val path = apkTarget

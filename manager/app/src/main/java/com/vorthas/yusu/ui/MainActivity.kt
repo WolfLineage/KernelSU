@@ -192,6 +192,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 LocalNavigator provides navigator,
+                LocalActivityViewModel provides viewModel,
                 LocalDensity provides density,
                 LocalColorMode provides appSettings.colorMode.value,
                 LocalEnableBlur provides uiState.enableBlur,
@@ -311,6 +312,11 @@ class MainActivity : ComponentActivity() {
 
 val LocalMainPagerState = staticCompositionLocalOf<MainPagerState> { error("LocalMainPagerState not provided") }
 
+/** The activity-scoped ViewModel, shared across NavDisplay entries for external file opens. */
+val LocalActivityViewModel = staticCompositionLocalOf<com.vorthas.yusu.ui.viewmodel.MainActivityViewModel> {
+    error("LocalActivityViewModel not provided")
+}
+
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScreen(
@@ -328,6 +334,16 @@ fun MainScreen(
         pagerState = pagerState,
         animatePageChanges = !useNavigationRail,
     )
+    // External "Open with": jump to the file-manager tab even if the main screen
+    // was already composed on another tab. Key on the request seq so repeated
+    // opens of the same file still switch tabs.
+    val revealActivityVm = LocalActivityViewModel.current
+    val revealSeq by revealActivityVm.revealRequestSeq.collectAsStateWithLifecycle()
+    LaunchedEffect(revealSeq) {
+        if (revealSeq > 0) {
+            mainPagerState.animateToPage(com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE)
+        }
+    }
     val isFullFeatured = Natives.isFullFeatured()
     val pagerMode = PagerInterceptionMode.Native
     val interceptPagerGestures = pagerMode == PagerInterceptionMode.CrossAxisInterceptor
@@ -449,6 +465,7 @@ fun MainScreen(
                         2 -> if (contentReady || isCurrentPage) ModulePager(bottomInnerPadding, isCurrentPage)
                         3 -> if (contentReady || isCurrentPage) FileManagerScreen(
                             bottomPadding = bottomInnerPadding,
+                            usePendingReveal = true,
                             onRunScript = { command ->
                                 mainPagerState.animateToPage(4)
                                 com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)

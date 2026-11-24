@@ -71,17 +71,15 @@ inline fun <T> withNewRootShell(
     return createRootShell(globalMnt).use(block)
 }
 
-fun Uri.getFileName(context: Context): String? {
-    var fileName: String? = null
-    val contentResolver: ContentResolver = context.contentResolver
-    val cursor: Cursor? = contentResolver.query(this, null, null, null, null)
+fun Uri.getFileName(context: Context): String? = runCatching {
+    val cursor = context.contentResolver.query(this, null, null, null, null)
     cursor?.use {
         if (it.moveToFirst()) {
-            fileName = it.getString(it.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
-        }
+            val idx = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0) it.getString(idx) else null
+        } else null
     }
-    return fileName
-}
+}.getOrNull()
 
 fun createRootShell(globalMnt: Boolean = false): Shell {
     Shell.enableVerboseLogging = BuildConfig.DEBUG

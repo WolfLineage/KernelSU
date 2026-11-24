@@ -158,6 +158,7 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
     val isSafeMode = Natives.isSafeMode
     val isManager = Natives.isManager
     val scope = rememberCoroutineScope()
+    val activityViewModel = com.vorthas.yusu.ui.LocalActivityViewModel.current
 
     // A one-shot script ZIP opens the run page, which also offers installing it as a module.
     val openModuleZip: (Uri) -> Unit = { uri ->
@@ -193,15 +194,22 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
             }
 
             is PendingAction.RevealFile -> {
-                // Resolve content/file Uri to a real path off the main thread, then
-                // navigate to the file manager which highlights the file.
+                // Resolve the Uri to a real path off the main thread, then return to
+                // the main screen (which has the bottom bar) on the file-manager tab
+                // and let it reveal the file. Push a bare Route.FileManager would
+                // lose the bottom navigation and confuse users.
                 scope.launch(Dispatchers.IO) {
                     val path = com.vorthas.yusu.ui.util.UriPathResolver.resolve(action.uri, action.displayName)
                     withContext(Dispatchers.Main) {
-                        if (path != null) {
-                            navigator.push(Route.FileManager(initialPath = path, requestId = System.currentTimeMillis()))
-                        } else {
+                        if (path == null) {
                             Toast.makeText(context, R.string.open_failed, Toast.LENGTH_SHORT).show()
+                            return@withContext
+                        }
+                        activityViewModel.requestReveal(path)
+                        if (navigator.backStack.any { it is Route.Main }) {
+                            navigator.popUntil { it is Route.Main }
+                        } else {
+                            navigator.replaceAll(listOf(Route.Main))
                         }
                     }
                 }
