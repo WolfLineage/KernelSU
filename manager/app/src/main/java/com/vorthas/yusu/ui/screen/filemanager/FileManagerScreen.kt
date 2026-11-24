@@ -5,6 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -16,8 +19,10 @@ import com.vorthas.yusu.ksuApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.vorthas.yusu.R
 import com.vorthas.yusu.ui.LocalUiMode
 import com.vorthas.yusu.ui.UiMode
+import com.vorthas.yusu.ui.component.dialog.rememberConfirmDialog
 import com.vorthas.yusu.ui.navigation3.LocalNavigator
 import com.vorthas.yusu.ui.navigation3.Route
 
@@ -25,6 +30,8 @@ import com.vorthas.yusu.ui.navigation3.Route
 fun FileManagerScreen(
     bottomPadding: Dp = Dp.Unspecified,
     onRunScript: (String) -> Unit = {},
+    initialPath: String? = null,
+    requestId: Long = 0L,
 ) {
     val navigator = LocalNavigator.current
     val uiMode = LocalUiMode.current
@@ -32,6 +39,37 @@ fun FileManagerScreen(
     val viewModel = viewModel<FileManagerViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var apkTarget by remember { mutableStateOf<String?>(null) }
+    var apkInfoText by remember { mutableStateOf<String?>(null) }
+    val apkDialog = rememberConfirmDialog(
+        onConfirm = { apkTarget?.let(viewModel::installApk); apkTarget = null },
+        onDismiss = { apkTarget = null },
+    )
+
+    // External "Open with": reveal the file in the active pane (navigate to its
+    // parent and highlight it). requestId changes even when the same file is opened
+    // again, so the effect re-runs instead of being de-duplicated by navigation.
+    LaunchedEffect(requestId, initialPath) {
+        if (initialPath != null) viewModel.reveal(state.activePane, initialPath)
+    }
+    LaunchedEffect(apkTarget) {
+        val path = apkTarget
+        if (path == null) {
+            apkInfoText = null
+        } else {
+            apkInfoText = withContext(Dispatchers.IO) {
+                runCatching {
+                    FileManagerRepository.apkInfo(path, ksuApp.cacheDir, ksuApp.packageManager)
+                }.getOrNull()?.let { info ->
+                    "${info.label}\n${info.packageName}\n${info.versionName} (${info.versionCode})"
+                }
+            }
+            apkDialog.showConfirm(
+                title = context.getString(R.string.install_apk_prompt),
+                content = apkInfoText ?: path.substringAfterLast('/'),
+            )
+        }
+    }
 
     BackHandler(enabled = state.panes.getOrNull(state.activePane)?.selected?.isNotEmpty() == true) {
         viewModel.clearSelection(state.activePane)
@@ -66,6 +104,9 @@ fun FileManagerScreen(
         val target = resolve(path)
         if (FileManagerRepository.isDirectory(target)) {
             viewModel.navigate(pane, target)
+        } else if (FileManagerRepository.isApkPath(target)) {
+            // MT style: tapping an APK shows the install dialog, not the archive browser.
+            apkTarget = target
         } else if (FileViewerRepository.archiveKind(target) != null) {
             // MT style: browse the archive in THIS pane; the other pane is untouched.
             viewModel.navigate(pane, FileViewerRepository.archiveVirtualPath(target, ""))

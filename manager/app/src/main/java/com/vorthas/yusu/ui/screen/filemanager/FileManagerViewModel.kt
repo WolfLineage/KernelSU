@@ -27,6 +27,8 @@ class FileManagerViewModel : ViewModel() {
 
     private val backStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
     private val forwardStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
+    // File to select once a pane's refresh finishes (navigate() clears selection).
+    private val pendingFocus = arrayOfNulls<String>(2)
     private val bookmarks = BookmarkRepository(ksuApp)
     private val homePaths = HomePathRepository(ksuApp)
 
@@ -93,7 +95,30 @@ class FileManagerViewModel : ViewModel() {
         // progress bar can fade in/out smoothly, like MT Manager's refresh feedback.
         val elapsed = System.currentTimeMillis() - startedAt
         if (elapsed < MIN_LOADING_MS) delay(MIN_LOADING_MS - elapsed)
-        _state.update { state -> state.withPane(pane) { it.copy(entries = sorted, loading = false) } }
+        _state.update { state -> state.withPane(pane) { paneState ->
+            val pending = synchronized(pendingFocus) { pendingFocus[pane] }
+            if (pending != null && sorted.any { it.path == pending }) {
+                synchronized(pendingFocus) { pendingFocus[pane] = null }
+                paneState.copy(
+                    entries = sorted, loading = false,
+                    selected = setOf(pending), focusPath = pending,
+                    focusTick = paneState.focusTick + 1,
+                )
+            } else {
+                paneState.copy(entries = sorted, loading = false)
+            }
+        } }
+    }
+
+    /**
+     * Reveal a file opened from another app: navigate its parent pane to the
+     * containing directory and select the file once the listing is ready.
+     */
+    fun reveal(pane: Int, filePath: String) {
+        if (pane !in 0..1) return
+        val parent = FileManagerRepository.parent(filePath)
+        synchronized(pendingFocus) { pendingFocus[pane] = filePath }
+        navigate(pane, parent)
     }
 
     /**
@@ -429,10 +454,17 @@ class FileManagerViewModel : ViewModel() {
 
     /** Root package-manager install of an APK; result is surfaced via [message]. */
     fun installApk(path: String) = viewModelScope.launch(Dispatchers.IO) {
-        _state.update { it.copy(busy = true) }
+        // Immediate acknowledgement so the action never feels like a no-op.
+        withContext(kotlinx.coroutines.Dispatchers.Main) {
+            message(ksuApp.getString(com.vorthas.yusu.R.string.installing_apk))
+        }
         val error = FileManagerRepository.installApk(path)
-        _state.update { it.copy(busy = false) }
-        message(error ?: "Install success")
+        val result = if (error == null) {
+            ksuApp.getString(com.vorthas.yusu.R.string.install_success)
+        } else {
+            "${ksuApp.getString(com.vorthas.yusu.R.string.install_failed)}: $error"
+        }
+        withContext(kotlinx.coroutines.Dispatchers.Main) { message(result) }
     }
 
     fun message(text: String) = _state.update { it.copy(message = text, busy = false) }

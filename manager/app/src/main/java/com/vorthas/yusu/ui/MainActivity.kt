@@ -277,7 +277,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                 )
                             }
-                            entry<Route.FileManager>(swipeDismiss = swipeDismiss) { FileManagerScreen() }
+                            entry<Route.FileManager>(swipeDismiss = swipeDismiss) { key ->
+                                FileManagerScreen(initialPath = key.initialPath, requestId = key.requestId)
+                            }
                             entry<Route.Terminal>(swipeDismiss = swipeDismiss) { key -> TerminalPage(key.path) }
                             entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key -> TextEditorPage(key.path, key.openAs, key.displayName) }
                             entry<Route.Home>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
@@ -445,10 +447,13 @@ fun MainScreen(
                         0 -> if (contentReady || isCurrentPage) HomePager(navController, bottomInnerPadding, isCurrentPage)
                         1 -> if (contentReady || isCurrentPage) SuperUserPager(navController, bottomInnerPadding, isCurrentPage)
                         2 -> if (contentReady || isCurrentPage) ModulePager(bottomInnerPadding, isCurrentPage)
-                        3 -> if (contentReady || isCurrentPage) FileManagerScreen(bottomInnerPadding) { command ->
-                            mainPagerState.animateToPage(4)
-                            com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)
-                        }
+                        3 -> if (contentReady || isCurrentPage) FileManagerScreen(
+                            bottomPadding = bottomInnerPadding,
+                            onRunScript = { command ->
+                                mainPagerState.animateToPage(4)
+                                com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)
+                            },
+                        )
                         4 -> if (contentReady || isCurrentPage) TerminalPage(
                             bottomPadding = bottomInnerPadding,
                             isVisible = isCurrentPage,

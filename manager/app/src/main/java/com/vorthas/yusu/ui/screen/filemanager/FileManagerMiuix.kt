@@ -152,12 +152,8 @@ internal fun FileManagerScreenMiuix(
             onDismiss = { searchOpen = false },
             onNavigate = { path -> actions.onNavigate(state.activePane, path) },
             onOpenFile = { path ->
-                val lower = path.lowercase()
-                if (lower.endsWith(".apk") || lower.endsWith(".apks")) {
-                    actions.onNavigate(state.activePane, FileManagerRepository.parent(path))
-                } else {
-                    actions.onOpenEditor(path)
-                }
+                // Let the shared open() handle APKs (install dialog) and archives.
+                actions.onOpenEditor(path)
             },
         )
     }

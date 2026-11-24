@@ -18,6 +18,9 @@ data class PaneUiState(
     val loading: Boolean = true,
     val sort: FileSortMode = FileSortMode.NAME,
     val refreshTick: Int = 0,
+    /** File revealed from an external "Open with" intent; UI scrolls to and highlights it. */
+    val focusPath: String? = null,
+    val focusTick: Int = 0,
 )
 
 data class FileManagerUiState(
@@ -72,4 +75,5 @@ data class FileManagerActions(
     val onShowBookmarks: () -> Unit = {},
     val onHideBookmarks: () -> Unit = {},
     val onNavigateBookmark: (String) -> Unit = {},
+    val onReveal: (Int, String) -> Unit = { _, _ -> },
 )

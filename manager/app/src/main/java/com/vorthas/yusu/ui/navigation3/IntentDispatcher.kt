@@ -6,26 +6,24 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.core.net.toUri
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.vorthas.yusu.Natives
 import com.vorthas.yusu.R
 import com.vorthas.yusu.data.repository.SettingsRepositoryImpl
 import com.vorthas.yusu.data.script.ScriptRepository
 import com.vorthas.yusu.ksuApp
-import com.vorthas.yusu.ui.component.dialog.rememberConfirmDialog
 import com.vorthas.yusu.ui.screen.flash.FlashIt
 import com.vorthas.yusu.ui.screen.scriptrun.ScriptRunArg
 import com.vorthas.yusu.ui.util.DownloadService
+import com.vorthas.yusu.ui.util.UriPathResolver
 import com.vorthas.yusu.ui.util.getFileName
 import com.vorthas.yusu.ui.webui.WebUIActivity
 
@@ -78,6 +76,9 @@ private sealed interface PendingAction {
 
     /** Open a module's WebUI — triggered by shortcut. */
     data class OpenWebUI(val moduleId: String) : PendingAction
+
+    /** Open any file from another app — reveal it in the file manager. */
+    data class RevealFile(val uri: Uri, val displayName: String) : PendingAction
 }
 
 private sealed interface KsuDeepLink {
@@ -96,8 +97,6 @@ private fun buildInternalWebUiUri(moduleId: String): Uri {
 fun getDisplayName(uri: Uri): String {
     return uri.getFileName(ksuApp) ?: uri.lastPathSegment ?: "Unknown"
 }
-
-private val ZIP_MIME_TYPES = setOf("application/zip", "application/x-zip-compressed", "application/x-zip")
 
 /**
  * Resolve an intent snapshot into a [PendingAction].
@@ -118,14 +117,14 @@ private fun resolveIntent(intent: Intent): PendingAction? {
         )
     }
 
-    // File manager: open ZIP
+    // Any file opened from another app ("Open with"): reveal it in the file
+    // manager. APK, ZIP and generic files all land there; no more ZIP→module
+    // install detour. The notification install-module path is handled above.
     val viewUri = intent.data
-    if (viewUri != null && viewUri.scheme == "content" && intent.type in ZIP_MIME_TYPES) {
-        return PendingAction.InstallModule(
-            uri = viewUri,
-            displayName = getDisplayName(viewUri),
-            requiresConfirmation = true,
-        )
+    if (viewUri != null && (viewUri.scheme == "content" || viewUri.scheme == "file") &&
+        (intent.action == Intent.ACTION_VIEW || intent.action == Intent.ACTION_INSTALL_PACKAGE)
+    ) {
+        return PendingAction.RevealFile(uri = viewUri, displayName = getDisplayName(viewUri))
     }
 
     // Check deep links
@@ -158,7 +157,6 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
     val navigator = LocalNavigator.current
     val isSafeMode = Natives.isSafeMode
     val isManager = Natives.isManager
-    var pendingZipInstall by rememberSaveable(stateSaver = PendingAction.InstallModule.InstallModuleSaver) { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
     // A one-shot script ZIP opens the run page, which also offers installing it as a module.
@@ -172,14 +170,6 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
             }
         }
     }
-
-    val installDialog = rememberConfirmDialog(
-        onConfirm = {
-            pendingZipInstall?.let { action -> openModuleZip(action.uri) }
-            pendingZipInstall = null
-        },
-        onDismiss = { pendingZipInstall = null }
-    )
 
     CollectIntentChannel(intentChannel) { intent ->
         if (!isManager) return@CollectIntentChannel
@@ -195,22 +185,26 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
                     ).show()
                     return@CollectIntentChannel
                 }
-                if (action.requiresConfirmation) {
-                    pendingZipInstall = action
-                    installDialog.showConfirm(
-                        title = resources.getString(R.string.module),
-                        content = resources.getString(
-                            R.string.module_install_prompt_with_name,
-                            "\n${action.displayName}"
-                        )
-                    )
-                } else {
-                    openModuleZip(action.uri)
-                }
+                openModuleZip(action.uri)
             }
 
             is PendingAction.ExecuteAction -> {
                 navigator.push(Route.ExecuteModuleAction(action.moduleId, fromShortcut = true))
+            }
+
+            is PendingAction.RevealFile -> {
+                // Resolve content/file Uri to a real path off the main thread, then
+                // navigate to the file manager which highlights the file.
+                scope.launch(Dispatchers.IO) {
+                    val path = com.vorthas.yusu.ui.util.UriPathResolver.resolve(action.uri, action.displayName)
+                    withContext(Dispatchers.Main) {
+                        if (path != null) {
+                            navigator.push(Route.FileManager(initialPath = path, requestId = System.currentTimeMillis()))
+                        } else {
+                            Toast.makeText(context, R.string.open_failed, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
 
             is PendingAction.OpenWebUI -> {

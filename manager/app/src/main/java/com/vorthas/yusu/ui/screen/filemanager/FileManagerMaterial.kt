@@ -540,6 +540,13 @@ internal fun PaneMaterial(
     var searching by remember { mutableStateOf(false) }
     val searchScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    // Scroll to a file revealed from an external "Open with" intent. The first
+    // row is the __parent__ item, so file rows are offset by one.
+    LaunchedEffect(pane.focusTick, pane.focusPath) {
+        val target = pane.focusPath ?: return@LaunchedEffect
+        val row = pane.entries.indexOfFirst { it.path == target }
+        if (row >= 0) listState.animateScrollToItem(row + 1)
+    }
     val refreshHolder = remember { object { var lastRefreshAt = 0L } }
     var pathInput by rememberSaveable(pane.path) { mutableStateOf(pane.path) }
     Column(
@@ -720,7 +727,7 @@ internal fun PaneMaterial(
                 text = {
                     // MT-style two-column icon menu.
                     Column(modifier = Modifier.verticalScroll(rememberScrollState()).width(340.dp)) {
-                        val rows = listOf(
+                        val rows = mutableListOf(
                             MtCtx(Icons.Filled.ContentCopy, if (index == 0) "复制 ->" else "<- 复制", enabled = true) {
                                 if (!wasSelected) actions.onSelectOnly(index, path)
                                 actions.onTransfer(false); contextPath = null
@@ -773,6 +780,12 @@ internal fun PaneMaterial(
                                 contextPath = null
                             },
                         )
+                        if (FileManagerRepository.isApkPath(path)) {
+                            rows.add(0, MtCtx(Icons.Filled.Android, "安装 APK", enabled = true) {
+                                if (!wasSelected) actions.onSelectOnly(index, path)
+                                actions.onInstallApk(path); contextPath = null
+                            })
+                        }
                         rows.chunked(2).forEach { pair ->
                             Row(Modifier.fillMaxWidth()) {
                                 pair.forEach { item -> MtContextItem(item, Modifier.weight(1f)) }

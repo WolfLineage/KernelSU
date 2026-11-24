@@ -96,7 +96,10 @@ sealed interface Route : NavKey, Parcelable {
 
     @Parcelize
     @Serializable
-    data object FileManager : Route
+    data class FileManager(
+        val initialPath: String? = null,
+        val requestId: Long = 0L,
+    ) : Route
 
     @Parcelize
     @Serializable

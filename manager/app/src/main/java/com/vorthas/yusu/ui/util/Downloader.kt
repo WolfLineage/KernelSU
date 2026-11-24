@@ -80,7 +80,7 @@ fun checkNewVersion(): LatestVersionInfo {
                         continue
                     }
 
-                    // e.g. YuSU_v3.4.1_34100-release.apk -> versionCode 34100
+                    // e.g. YuSU_v3.4.2_34207-release.apk -> versionCode 34207
                     val regex = Regex("v(.+?)_(\\d+)-")
                     val matchResult = regex.find(name) ?: continue
                     val versionCode = matchResult.groupValues[2].toInt()

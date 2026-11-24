@@ -476,6 +476,15 @@ object FileManagerRepository {
      * Mirrors the reference tool's `SmartFileOpener`: binary and archive files are
      * routed to a hex/chunk viewer instead of the whole-file text editor.
      */
+    /** APK detection shared by the file manager and external "Open with" handling.
+     *  IM apps and downloaders append numeric suffixes to duplicates (foo.apk.1). */
+    fun isApkPath(path: String): Boolean {
+        val name = path.substringAfterLast('/')
+        val lower = name.lowercase()
+        if (lower.endsWith(".apk") || lower.endsWith(".apks")) return true
+        return Regex("\\.apk\\.\\d+$").containsMatchIn(lower)
+    }
+
     fun sniff(path: String): FileKind {
         val head = runCatching { readHeader(path, 8 * 1024) }.getOrDefault(ByteArray(0))
         val byMagic = when {

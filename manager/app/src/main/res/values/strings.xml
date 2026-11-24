@@ -502,4 +502,9 @@
     <string name="susfs_script_rom_desc">Hides ROM-specific files and addon.d paths</string>
     <string name="susfs_script_markers">Detection marker cleanup</string>
     <string name="susfs_script_markers_desc">Removes leftover SuSFS markers from shared storage</string>
+    <string name="install_success">Install successful</string>
+    <string name="install_failed">Install failed</string>
+    <string name="installing_apk">Installing APK…</string>
+    <string name="open_failed">Cannot open file</string>
+    <string name="install_apk_prompt">Install this APK?</string>
 </resources>

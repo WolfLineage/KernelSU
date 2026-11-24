@@ -496,4 +496,9 @@
     <string name="susfs_script_rom_desc">隐藏自定义 ROM 文件与 addon.d 路径</string>
     <string name="susfs_script_markers">检测标记清理</string>
     <string name="susfs_script_markers_desc">删除共享存储中的 SuSFS 残留标记</string>
+    <string name="install_success">安装成功</string>
+    <string name="install_failed">安装失败</string>
+    <string name="installing_apk">正在安装 APK…</string>
+    <string name="open_failed">无法打开文件</string>
+    <string name="install_apk_prompt">安装此 APK？</string>
 </resources>
