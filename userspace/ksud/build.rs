@@ -10,17 +10,10 @@ const BOOTSTRAP_OBJECT: &str = "lkm_image_bootstrap.o";
 const PREPARED_BOOTSTRAP_OBJECT: &str = ".lkm_image_bootstrap.o";
 
 fn get_git_version() -> Result<(u32, String), std::io::Error> {
-    let output = Command::new("git")
-        .args(["rev-list", "--count", "HEAD"])
-        .output()?;
-
-    let output = output.stdout;
-    let version_code = String::from_utf8(output).expect("Failed to read git count stdout");
-    let version_code: u32 = version_code
-        .trim()
-        .parse()
-        .map_err(|_| std::io::Error::other("Failed to parse git count"))?;
-    let version_code = 30000 + version_code;
+    // Fixed semantic version 34100 (v3.4.1), matching the manager APK versionCode
+    // and kernel/Kbuild KSU_VERSION. The old 30000 + git commit count drifted and
+    // made the flashed LKM version disagree with the manager display.
+    let version_code: u32 = 34100;
 
     let version_name = String::from_utf8(
         Command::new("git")

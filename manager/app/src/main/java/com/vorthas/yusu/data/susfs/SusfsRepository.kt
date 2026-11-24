@@ -38,6 +38,7 @@ data class SusfsStatus(
     val logging: Boolean,
     val avcSpoof: Boolean,
     val statusLine: String?,
+    val loadLog: String?,
 )
 
 data class SusfsScriptState(
@@ -161,10 +162,10 @@ object SusfsRepository {
             #!/system/bin/sh
             # Installed by YuSU Manager. Native SuSFS LKM integration.
             [ -x "$NATIVE_DIR/core/susfs.sh" ] || exit 0
-            "$CLI" --load-lkm >/dev/null 2>&1
-            "$CLI" --stage-early >/dev/null 2>&1
-            "$CLI" --run-postfs-scripts >/dev/null 2>&1
-            "$CLI" --status-report >/dev/null 2>&1
+            "$CLI" --load-lkm >>$NATIVE_DIR/last-load.log 2>&1
+            "$CLI" --stage-early >>$NATIVE_DIR/last-load.log 2>&1
+            "$CLI" --run-postfs-scripts >>$NATIVE_DIR/last-load.log 2>&1
+            "$CLI" --status-report >>$NATIVE_DIR/last-load.log 2>&1
             exit 0
             """.trimIndent() + "\n"
         )
@@ -187,15 +188,30 @@ object SusfsRepository {
             exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
             exec("test -L $CLI").isSuccess
 
-    private fun isCurrent(): Boolean =
-        output("cat $NATIVE_DIR/.installed 2>/dev/null") == "${BuildConfig.VERSION_CODE}:$ENGINE_MARKER" &&
+    /**
+     * Current KMI derived from the running kernel. This must match the KMI recorded
+     * in the .installed marker: a newly patched kernel can change the KMI, in which
+     * case the engine must be reinstalled with the matching guard LKM.
+     */
+    private fun currentKmi(): String? = kmiOf(
+        output("uname -r").ifBlank { System.getProperty("os.version").orEmpty() }
+    )
+
+    private fun installedMarker(kmi: String): String = "${BuildConfig.VERSION_CODE}:$ENGINE_MARKER:$kmi"
+
+    private fun isCurrent(): Boolean {
+        val kmi = currentKmi() ?: return false
+        val lkmName = lkmNameFor(kmi) ?: return false
+        return output("cat $NATIVE_DIR/.installed 2>/dev/null") == installedMarker(kmi) &&
             exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
             exec("test -x $SUSFS_BIN").isSuccess &&
             exec("test -L $CLI").isSuccess &&
             exec("test -L $POST_FS_LINK").isSuccess &&
             exec("test -L $BOOT_LINK").isSuccess &&
             exec("test -L $SERVICE_LINK").isSuccess &&
-            exec("test -f $POST_FS_HOOK").isSuccess
+            exec("test -f $POST_FS_HOOK").isSuccess &&
+            exec("test -f $NATIVE_DIR/lkm/$lkmName").isSuccess
+    }
 
     /** Install or refresh the native engine and boot hooks. Existing user config is preserved. */
     fun install(): Result<String> = runCatching {
@@ -219,6 +235,8 @@ object SusfsRepository {
             add("chmod 755 $SUSFS_BIN")
             add("cp -f $src/bin/susfs_insmod $NATIVE_DIR/bin/susfs_insmod")
             add("chmod 755 $NATIVE_DIR/bin/susfs_insmod")
+            // Remove stale LKMs from a previous KMI; a kernel patch may change it.
+            add("rm -f $NATIVE_DIR/lkm/*.ko")
             add("cp -f $src/lkm/$lkmName $NATIVE_DIR/lkm/$lkmName")
             add("chmod 644 $NATIVE_DIR/lkm/$lkmName")
             add("ln -sfn $NATIVE_DIR/core/susfs.sh $CLI")
@@ -236,7 +254,7 @@ object SusfsRepository {
             add("if [ ! -e $SERVICE_LINK ]; then ln -s $HOOKS_DIR/service.d $SERVICE_LINK; fi")
             // Restore pristine defaults once when upgrading from a release that mutated them.
             add("if grep -q 'native-[1-8]' $NATIVE_DIR/.installed 2>/dev/null; then cp -f $src/configs/*.txt $PERSISTENT_DIR/; cp -f $src/configs/scripts/*.sh $PERSISTENT_DIR/scripts/; fi")
-            add("printf '%s' '${BuildConfig.VERSION_CODE}:$ENGINE_MARKER' > $NATIVE_DIR/.installed")
+            add("printf '%s' '${installedMarker(kmi)}' > $NATIVE_DIR/.installed")
         }
 
         configFiles.forEach { name ->
@@ -293,6 +311,7 @@ object SusfsRepository {
             logging = values["ENABLE_LOG"] == true,
             avcSpoof = values["ENABLE_AVC_LOG_SPOOFING"] == true,
             statusLine = output("cat $NATIVE_DIR/status.txt 2>/dev/null").takeIf { it.isNotBlank() },
+            loadLog = output("tail -n 20 $NATIVE_DIR/last-load.log 2>/dev/null").takeIf { it.isNotBlank() },
         )
     }
 
@@ -338,6 +357,14 @@ object SusfsRepository {
         if (!isRoot()) return@runCatching null
         val builtIn = exec("zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_KSU_SUSFS=y'").isSuccess
         if (builtIn) return@runCatching null
+        // A patched kernel may have a different KMI than when the engine was first
+        // installed. If the matching guard LKM is missing, reinstall before loading.
+        val kmi = currentKmi()
+        val lkmName = kmi?.let { lkmNameFor(it) }
+        if (lkmName == null || !exec("test -f $NATIVE_DIR/lkm/$lkmName").isSuccess) {
+            Log.i(TAG, "SuSFS LKM missing for current KMI ($kmi), reinstalling engine")
+            install().getOrThrow()
+        }
         if (!engineToolsReady()) return@runCatching null
         val version = output("$SUSFS_BIN show version 2>/dev/null").lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
         val features = output("$SUSFS_BIN show enabled_features 2>/dev/null").lines().count { it.isNotBlank() }
