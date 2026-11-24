@@ -14,6 +14,47 @@ class FileManagerRepositoryTest {
     }
 
     @Test
+    fun symbolicToOctalHandlesSpecialBits() {
+        assertEquals("0755", FileManagerRepository.symbolicToOctal("-rwxr-xr-x"))
+        assertEquals("0644", FileManagerRepository.symbolicToOctal("-rw-r--r--"))
+        assertEquals("2770", FileManagerRepository.symbolicToOctal("drwxrws---"))
+        // setuid+setgid+sticky together -> 7xxx
+        assertEquals("7777", FileManagerRepository.symbolicToOctal("-rwsrwsrwt"))
+        // uppercase S/T mark the special bit WITHOUT execute
+        assertEquals("6744", FileManagerRepository.symbolicToOctal("-rwsr-Sr--"))
+        assertEquals(null, FileManagerRepository.symbolicToOctal("bad"))
+    }
+
+    @Test
+    fun mtPermissionChecksRoundTrip() {
+        // 0755 -> owner rwx, group r-x, other r-x, no special bits
+        val c = FileManagerRepository.checksFromOctal("0755")
+        assertTrue(c.read.contentEquals(booleanArrayOf(true, true, true)))
+        assertTrue(c.write.contentEquals(booleanArrayOf(true, false, false)))
+        assertTrue(c.execute.contentEquals(booleanArrayOf(true, true, true)))
+        assertEquals(
+            "0755",
+            FileManagerRepository.modeFromChecks(c.read, c.write, c.execute, c.setUid, c.setGid, c.sticky),
+        )
+        // setuid + setgid + sticky -> 7777
+        val s = FileManagerRepository.checksFromOctal("7777")
+        assertEquals(true, s.setUid); assertEquals(true, s.setGid); assertEquals(true, s.sticky)
+        assertEquals(
+            "7777",
+            FileManagerRepository.modeFromChecks(s.read, s.write, s.execute, s.setUid, s.setGid, s.sticky),
+        )
+        assertEquals("rw-r--r--(644)", FileManagerRepository.octalToDisplay("0644"))
+        assertEquals("rwSr--r--(644)", FileManagerRepository.octalToDisplay("4644"))
+    }
+
+    @Test
+    fun homePathKeysAreIsolatedPerPane() {
+        assertEquals("home_left", homePathKey(0))
+        assertEquals("home_right", homePathKey(1))
+        org.junit.Assert.assertNotEquals(homePathKey(0), homePathKey(1))
+    }
+
+    @Test
     fun formatSizeUsesReadableUnits() {
         assertEquals("0 B", FileManagerRepository.formatSize(0))
         assertEquals("1.0 KB", FileManagerRepository.formatSize(1024))

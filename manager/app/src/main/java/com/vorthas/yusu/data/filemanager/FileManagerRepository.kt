@@ -358,6 +358,100 @@ object FileManagerRepository {
         return if (result.isSuccess) null else result.err.joinToString("\n").ifBlank { "chmod failed" }
     }
 
+    /**
+     * Convert an `ls -l` symbolic permission string (e.g. "drwxrws---") to a
+     * 4-digit octal mode ("2770") for editing in the properties dialog.
+     * Returns null when the input is not a 10-character ls mode.
+     */
+    fun symbolicToOctal(mode: String): String? {
+        if (mode.length != 10) return null
+        // Position of each triad's execute character: user=3, group=6, other=9.
+        // Lowercase s/t means setuid/setgid/sticky WITH execute; uppercase means
+        // WITHOUT execute — only the lowercase form contributes the x bit.
+        fun triadValue(xPos: Int): Int {
+            var value = 0
+            if (mode[xPos - 2] == 'r') value += 4
+            if (mode[xPos - 1] == 'w') value += 2
+            if (mode[xPos] == 'x' || mode[xPos] == 's' || mode[xPos] == 't') value += 1
+            return value
+        }
+        val special = (if (mode[3] == 's' || mode[3] == 'S') 4 else 0) +
+            (if (mode[6] == 's' || mode[6] == 'S') 2 else 0) +
+            (if (mode[9] == 't' || mode[9] == 'T') 1 else 0)
+        return "$special${triadValue(3)}${triadValue(6)}${triadValue(9)}"
+    }
+
+    /**
+     * Build a 4-digit octal mode from the MT-style permission checkbox matrix:
+     * [read]/[write]/[execute] each have three entries for owner/group/other.
+     * setUid/setGid/sticky map to the leading special digit (4/2/1).
+     */
+    fun modeFromChecks(
+        read: BooleanArray,
+        write: BooleanArray,
+        execute: BooleanArray,
+        setUid: Boolean,
+        setGid: Boolean,
+        sticky: Boolean,
+    ): String {
+        fun triad(i: Int): Int = (if (read.getOrNull(i) == true) 4 else 0) +
+            (if (write.getOrNull(i) == true) 2 else 0) +
+            (if (execute.getOrNull(i) == true) 1 else 0)
+        val special = (if (setUid) 4 else 0) + (if (setGid) 2 else 0) + (if (sticky) 1 else 0)
+        return "$special${triad(0)}${triad(1)}${triad(2)}"
+    }
+
+    /** Inverse of [modeFromChecks]: expand a 4-digit octal mode into the MT checkbox matrix. */
+    fun checksFromOctal(octal: String): PermissionChecks {
+        val full = octal.padStart(4, '0').takeLast(4)
+        val special = full[0] - '0'
+        val digits = full.drop(1).map { it - '0' }
+        if (special !in 0..7 || digits.size != 3 || digits.any { it !in 0..7 }) return PermissionChecks()
+        return PermissionChecks(
+            read = booleanArrayOf(*digits.map { it and 4 != 0 }.toBooleanArray()),
+            write = booleanArrayOf(*digits.map { it and 2 != 0 }.toBooleanArray()),
+            execute = booleanArrayOf(*digits.map { it and 1 != 0 }.toBooleanArray()),
+            setUid = special and 4 != 0,
+            setGid = special and 2 != 0,
+            sticky = special and 1 != 0,
+        )
+    }
+
+    data class PermissionChecks(
+        val read: BooleanArray = booleanArrayOf(false, false, false),
+        val write: BooleanArray = booleanArrayOf(false, false, false),
+        val execute: BooleanArray = booleanArrayOf(false, false, false),
+        val setUid: Boolean = false,
+        val setGid: Boolean = false,
+        val sticky: Boolean = false,
+    )
+
+    /** Display form used by MT: symbolic bits without the type char, plus the octal in parentheses. */
+    fun octalToDisplay(octal: String): String {
+        // Normalize to 4 digits so the leading special bit is always at index 0.
+        val full = octal.padStart(4, '0').takeLast(4)
+        val special = full[0] - '0'
+        val digits = full.drop(1).map { it - '0' }
+        if (special !in 0..7 || digits.any { it !in 0..7 }) return octal
+        val chars = digits.mapIndexed { i, d ->
+            val base = if (d and 4 != 0) "r" else "-"
+            val mid = if (d and 2 != 0) "w" else "-"
+            val hasX = d and 1 != 0
+            val hasSpecial = (i == 0 && special and 4 != 0) ||
+                (i == 1 && special and 2 != 0) ||
+                (i == 2 && special and 1 != 0)
+            val last = when {
+                hasX && hasSpecial -> if (i == 2) "t" else "s"
+                hasX -> "x"
+                hasSpecial -> if (i == 2) "T" else "S"
+                else -> "-"
+            }
+            base + mid + last
+        }.joinToString("")
+        // MT shows the 3 permission digits in parentheses (e.g. rw-r--r--(644)).
+        return "$chars(${full.drop(1)})"
+    }
+
     /** First bytes of a file, used to tell ELF binaries from shell scripts. */
     fun readHeader(path: String, count: Int = 4): ByteArray =
         SuFileInputStream.open(rootFile(path)).use { input ->
@@ -560,12 +654,6 @@ object FileManagerRepository {
         if (from == to) return "Source and destination are the same"
         val result = exec("mv -f -- ${from.shellQuote()} ${to.shellQuote()}")
         return if (result.isSuccess) null else result.err.joinToString("\n").ifBlank { "Move failed" }
-    }
-
-    fun chmod(path: String, mode: String): String? {
-        if (!Regex("[0-7]{3,4}").matches(mode)) return "Invalid mode"
-        val result = exec("chmod ${mode.shellQuote()} -- ${path.shellQuote()}")
-        return if (result.isSuccess) null else result.err.joinToString("\n").ifBlank { "chmod failed" }
     }
 
     /**

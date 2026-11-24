@@ -444,6 +444,7 @@
     <string name="susfs_status_not_installed">Not installed</string>
     <string name="susfs_status_active">Active</string>
     <string name="susfs_status_inactive">Inactive</string>
+    <string name="susfs_status_pending_load">Integrated · LKM not loaded</string>
     <string name="susfs_status_summary">%1$s · KMI %2$s · version %3$s · variant %4$s · %5$d features</string>
     <string name="susfs_builtin_kernel">Kernel built-in</string>
     <string name="susfs_lkm_mode">Guard LKM</string>

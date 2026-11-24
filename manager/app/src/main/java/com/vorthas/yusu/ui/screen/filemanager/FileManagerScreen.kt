@@ -111,6 +111,7 @@ fun FileManagerScreen(
         onNewFile = { pane, name -> viewModel.newFile(pane, name) },
         onRename = { from, to -> viewModel.rename(from, to) },
         onChmod = { mode, recursive -> viewModel.chmod(mode, recursive) },
+        onChmodPath = { path, mode, recursive -> viewModel.chmodPath(path, mode, recursive) },
         onOpenEditor = { path -> open(state.activePane, path) },
         onOpenEditorFirst = {
             state.panes.getOrNull(state.activePane)?.selected?.firstOrNull()?.let {
@@ -123,6 +124,7 @@ fun FileManagerScreen(
         onInstallApk = { path -> viewModel.installApk(path) },
         onMessageShown = viewModel::messageShown,
         onToggleBookmark = viewModel::toggleBookmark,
+        onSetHome = { pane, path -> viewModel.setHome(pane, path) },
         onShowBookmarks = viewModel::showBookmarks,
         onHideBookmarks = viewModel::hideBookmarks,
         onNavigateBookmark = { path -> viewModel.navigate(state.activePane, resolve(path)) },

@@ -6,6 +6,7 @@ import com.vorthas.yusu.data.filemanager.BookmarkRepository
 import com.vorthas.yusu.data.filemanager.FileEntry
 import com.vorthas.yusu.data.filemanager.FileManagerRepository
 import com.vorthas.yusu.data.filemanager.FileViewerRepository
+import com.vorthas.yusu.data.filemanager.HomePathRepository
 import com.vorthas.yusu.ksuApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,10 +28,27 @@ class FileManagerViewModel : ViewModel() {
     private val backStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
     private val forwardStacks = listOf(ArrayDeque<String>(), ArrayDeque<String>())
     private val bookmarks = BookmarkRepository(ksuApp)
+    private val homePaths = HomePathRepository(ksuApp)
 
     init {
+        // Default to the configured home directory for each pane independently.
+        val initialLeft = homePaths.get(0) ?: FileManagerRepository.defaultLeft()
+        val initialRight = homePaths.get(1) ?: FileManagerRepository.defaultRight()
+        _state.value = _state.value.copy(
+            panes = listOf(
+                _state.value.panes[0].copy(path = initialLeft),
+                _state.value.panes[1].copy(path = initialRight),
+            )
+        )
         refresh(0)
         refresh(1)
+    }
+
+    /** Set the given pane's home directory; only that pane's preference is touched. */
+    fun setHome(pane: Int, path: String) {
+        if (pane !in 0..1) return
+        homePaths.set(pane, path)
+        message("窗口 ${pane + 1} 首页已设为 $path")
     }
 
     /** MT-style bookmarks: toggle, list and navigate. */
@@ -337,6 +355,15 @@ class FileManagerViewModel : ViewModel() {
         }
         val errors = paths.mapNotNull { FileManagerRepository.chmod(it, mode, recursive) }
         message(if (errors.isEmpty()) "Permissions updated" else errors.first())
+        refresh(pane)
+    }
+
+    /** Apply a mode to one explicit path from the properties dialog, independent of selection/focus. */
+    fun chmodPath(path: String, mode: String, recursive: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        val pane = _state.value.panes.indexOfFirst { path in it.selected || it.entries.any { e -> e.path == path } }
+            .let { if (it >= 0) it else _state.value.activePane }
+        val error = FileManagerRepository.chmod(path, mode, recursive)
+        message(if (error == null) "权限已更新" else error)
         refresh(pane)
     }
 

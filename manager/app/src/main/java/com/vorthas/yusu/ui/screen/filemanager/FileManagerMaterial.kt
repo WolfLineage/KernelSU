@@ -51,7 +51,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
@@ -130,6 +130,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -500,11 +501,19 @@ internal fun PaneMaterial(
     var contextPath by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var infoTarget by remember { mutableStateOf<String?>(null) }
+    // MT-style permission editor state: 3x3 checkbox matrix (owner/group/other x r/w/x)
+    // plus the three special bits. Derived from the current octal mode when opened.
+    var permDialog by remember { mutableStateOf(false) }
+    var permRead by remember { mutableStateOf(booleanArrayOf(false, false, false)) }
+    var permWrite by remember { mutableStateOf(booleanArrayOf(false, false, false)) }
+    var permExec by remember { mutableStateOf(booleanArrayOf(false, false, false)) }
+    var permSuid by remember { mutableStateOf(false) }
+    var permSgid by remember { mutableStateOf(false) }
+    var permSticky by remember { mutableStateOf(false) }
+    var infoModeInput by remember { mutableStateOf("") }
+    var infoModeRecursive by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<String?>(null) }
     var renameInput by remember { mutableStateOf("") }
-    var chmodDialog by remember { mutableStateOf(false) }
-    var chmodInput by remember { mutableStateOf("0755") }
-    var chmodRecursive by remember { mutableStateOf(false) }
     var pathDialog by remember { mutableStateOf(false) }
     var swipeAnchor by remember { mutableIntStateOf(-1) }
     // APK install dialog (MT-style): tap or long-press an .apk to open it.
@@ -533,17 +542,6 @@ internal fun PaneMaterial(
     val listState = rememberLazyListState()
     val refreshHolder = remember { object { var lastRefreshAt = 0L } }
     var pathInput by rememberSaveable(pane.path) { mutableStateOf(pane.path) }
-    val breadcrumbs = remember(pane.path) {
-        val segments = pane.path.trim('/').split('/').filter { it.isNotEmpty() }
-        buildList {
-            add("/" to "/")
-            var current = ""
-            segments.forEach { segment ->
-                current += "/$segment"
-                add(segment to current)
-            }
-        }
-    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -614,21 +612,6 @@ internal fun PaneMaterial(
                     .clickable { pathDialog = true }
                     .padding(horizontal = 10.dp, vertical = 10.dp),
             )
-        }
-        if (!compact) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp),
-            ) {
-                breadcrumbs.forEach { (label, fullPath) ->
-                    TextButton(
-                        onClick = { actions.onNavigate(index, fullPath) },
-                        modifier = Modifier.height(28.dp).padding(end = 2.dp),
-                    ) { Text(label, fontSize = 11.sp, maxLines = 1) }
-                }
-            }
         }
         // MT-style smooth refresh feedback: cross-fade the status text instead of
         // snapping between "N items" and "loading", and ease the progress bar in/out.
@@ -738,9 +721,9 @@ internal fun PaneMaterial(
                     // MT-style two-column icon menu.
                     Column(modifier = Modifier.verticalScroll(rememberScrollState()).width(340.dp)) {
                         val rows = listOf(
-                            MtCtx(Icons.Filled.Unarchive, if (index == 0) "解压 ->" else "<- 解压", enabled = true) {
+                            MtCtx(Icons.Filled.ContentCopy, if (index == 0) "复制 ->" else "<- 复制", enabled = true) {
                                 if (!wasSelected) actions.onSelectOnly(index, path)
-                                actions.onExtract(); contextPath = null
+                                actions.onTransfer(false); contextPath = null
                             },
                             MtCtx(Icons.Filled.ContentCopy, if (index == 0) "移动 ->" else "<- 移动", enabled = true) {
                                 if (!wasSelected) actions.onSelectOnly(index, path)
@@ -755,18 +738,39 @@ internal fun PaneMaterial(
                                 renameInput = path.substringAfterLast('/')
                                 contextPath = null
                             },
-                            MtCtx(Icons.Filled.Build, "工具", enabled = true) {
-                                chmodDialog = true; contextPath = null
-                            },
                             MtCtx(Icons.Filled.ZoomOutMap, "压缩", enabled = false) { contextPath = null },
                             MtCtx(Icons.Filled.Info, "属性", enabled = true) {
-                                infoTarget = path; contextPath = null
+                                infoTarget = path
+                                val octal = FileManagerRepository.symbolicToOctal(
+                                    pane.entries.firstOrNull { it.path == path }?.mode.orEmpty()
+                                ) ?: "0755"
+                                infoModeInput = octal
+                                val checks = FileManagerRepository.checksFromOctal(octal)
+                                permRead = checks.read.copyOf()
+                                permWrite = checks.write.copyOf()
+                                permExec = checks.execute.copyOf()
+                                permSuid = checks.setUid
+                                permSgid = checks.setGid
+                                permSticky = checks.sticky
+                                infoModeRecursive = false
+                                contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Unarchive, if (index == 0) "解压 ->" else "<- 解压", enabled = true) {
+                                if (!wasSelected) actions.onSelectOnly(index, path)
+                                actions.onExtract(); contextPath = null
                             },
                             MtCtx(Icons.Filled.MoreVert, "打开方式...", enabled = true) {
                                 actions.onOpenEditor(path); contextPath = null
                             },
                             MtCtx(Icons.Filled.Bookmark, if (path in state.bookmarkPaths) "取消书签" else "添加书签", enabled = true) {
                                 actions.onToggleBookmark(path); contextPath = null
+                            },
+                            MtCtx(Icons.Filled.Home, "设为首页", enabled = true) {
+                                val target = pane.entries.firstOrNull { it.path == path }
+                                val home = if (target?.isDirectory == true) path
+                                    else path.substringBeforeLast('/').ifBlank { "/" }
+                                actions.onSetHome(index, home)
+                                contextPath = null
                             },
                         )
                         rows.chunked(2).forEach { pair ->
@@ -906,51 +910,78 @@ internal fun PaneMaterial(
                         InfoRow("路径", target)
                         InfoRow("类型", kindText)
                         InfoRow("大小", FileManagerRepository.formatSize(FileManagerRepository.fileSize(target)))
-                        InfoRow("权限", entry?.mode ?: "—")
+                        InfoRow("修改时间", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                            .format(java.util.Date(entry?.lastModified ?: 0L)))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text("权限", color = toolMutedColor(), fontSize = 13.sp, modifier = Modifier.width(56.dp))
+                            Text(
+                                FileManagerRepository.octalToDisplay(infoModeInput),
+                                color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { permDialog = true }) { Text("更改") }
+                        }
+                        InfoRow("所有者", "root")
+                        InfoRow("用户组", "root")
                     }
                 },
-                confirmButton = { TextButton(onClick = { infoTarget = null }) { Text(stringResource(android.R.string.ok)) } },
+                confirmButton = { TextButton(onClick = { infoTarget = null }) { Text("关闭") } },
             )
         }
 
-        if (chmodDialog) {
+        // MT Manager style permission editor: a 3x3 checkbox matrix plus special bits.
+        if (permDialog && infoTarget != null) {
+            val target = infoTarget!!
+            val currentOctal = FileManagerRepository.modeFromChecks(permRead, permWrite, permExec, permSuid, permSgid, permSticky)
             AlertDialog(
-                onDismissRequest = { chmodDialog = false },
+                onDismissRequest = { permDialog = false },
                 containerColor = dialogSurface(),
                 titleContentColor = dialogText(),
                 textContentColor = dialogText(),
-                title = { Text("修改权限") },
+                title = { Text("权限") },
                 text = {
-                    Column {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            listOf("0755", "0644", "0700", "0600", "0777").forEach {
-                                TextButton(onClick = { chmodInput = it }) { Text(it, fontSize = 11.sp) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(Modifier.width(56.dp))
+                            listOf("读", "写", "执行").forEach {
+                                Text(it, color = dialogText(), fontSize = 14.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.width(36.dp))
                             }
                         }
-                        OutlinedTextField(
-                            value = chmodInput,
-                            onValueChange = { if (it.length <= 4 && it.all { c -> c in '0'..'7' }) chmodInput = it },
-                            singleLine = true,
-                            label = { Text("八进制权限 (0000-7777)") },
-                            colors = dialogFieldColors(),
+                        listOf("所有者", "用户组", "其它").forEachIndexed { row, label ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(label, color = dialogText(), fontSize = 14.sp, modifier = Modifier.width(56.dp))
+                                PermCheck(permRead[row]) { permRead = permRead.copyOf().also { it[row] = !it[row] } }
+                                PermCheck(permWrite[row]) { permWrite = permWrite.copyOf().also { it[row] = !it[row] } }
+                                PermCheck(permExec[row]) { permExec = permExec.copyOf().also { it[row] = !it[row] } }
+                            }
+                        }
+                        Text("---- 特殊权限 ----", color = dialogText(), fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PermCheck(permSuid) { permSuid = !permSuid }; Text("设置UID", color = dialogText(), fontSize = 12.sp)
+                            PermCheck(permSgid) { permSgid = !permSgid }; Text("设置GID", color = dialogText(), fontSize = 12.sp)
+                            PermCheck(permSticky) { permSticky = !permSticky }; Text("粘滞", color = dialogText(), fontSize = 12.sp)
+                        }
+                        Text(
+                            FileManagerRepository.octalToDisplay(currentOctal),
+                            color = dialogText(), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 10.dp),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = chmodRecursive, onCheckedChange = { chmodRecursive = it })
+                            Checkbox(checked = infoModeRecursive, onCheckedChange = { infoModeRecursive = it })
                             Text("递归应用到子目录", style = MaterialTheme.typography.bodySmall, color = dialogText())
                         }
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        actions.onChmod(chmodInput, chmodRecursive)
-                        chmodDialog = false
-                    }) { Text(stringResource(android.R.string.ok)) }
+                        actions.onChmodPath(target, currentOctal, infoModeRecursive)
+                        permDialog = false
+                        infoTarget = null
+                    }) { Text("确定") }
                 },
-                dismissButton = {
-                    TextButton(onClick = { chmodDialog = false }) {
-                        Text(stringResource(android.R.string.cancel))
-                    }
-                },
+                dismissButton = { TextButton(onClick = { permDialog = false }) { Text("取消") } },
             )
         }
 
@@ -1308,6 +1339,20 @@ private fun InfoRow(label: String, value: String) {
         Text(label, color = toolMutedColor(), fontSize = 13.sp, modifier = Modifier.width(56.dp))
         Text(value, color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
     }
+}
+
+/** MT-style blue check box for the permission matrix. */
+@Composable
+private fun PermCheck(checked: Boolean, onChange: () -> Unit) {
+    Checkbox(
+        checked = checked,
+        onCheckedChange = { onChange() },
+        modifier = Modifier.size(36.dp),
+        colors = androidx.compose.material3.CheckboxDefaults.colors(
+            checkedColor = toolPrimaryColor(),
+            uncheckedColor = toolMutedColor(),
+        ),
+    )
 }
 
 private data class MtCtx(

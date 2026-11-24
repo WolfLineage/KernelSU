@@ -438,6 +438,7 @@
     <string name="susfs_status_not_installed">未安装</string>
     <string name="susfs_status_active">已激活</string>
     <string name="susfs_status_inactive">未激活</string>
+    <string name="susfs_status_pending_load">已集成 · LKM 未加载</string>
     <string name="susfs_status_summary">%1$s · KMI %2$s · 版本 %3$s · 变体 %4$s · %5$d 项特性</string>
     <string name="susfs_builtin_kernel">内核内置</string>
     <string name="susfs_lkm_mode">守护 LKM</string>

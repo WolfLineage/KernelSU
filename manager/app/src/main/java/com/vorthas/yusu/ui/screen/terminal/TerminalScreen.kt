@@ -180,9 +180,12 @@ private fun TerminalContent(
         keyboard?.show()
         runCatching { imeManager.showSoftInput(rootView, InputMethodManager.SHOW_FORCED) }
     }
-    val drafts = remember { mutableStateMapOf<Long, String>() }
     var confirmClose by remember { mutableStateOf<Long?>(null) }
     val activeId = state.activeSessionId
+    // The hidden field keeps a local draft of what has already been forwarded, so
+    // candidate/composition snapshots are not re-sent. Hardware keys are consumed by
+    // onKeyEvent and never reach the field; IME commits arrive via onValueChange.
+    val drafts = remember { mutableStateMapOf<Long, String>() }
     val draft = activeId?.let { drafts[it] }.orEmpty()
     val setDraft: (String) -> Unit = { value -> activeId?.let { drafts[it] = value } }
     LaunchedEffect(isVisible) {
@@ -231,13 +234,27 @@ private fun TerminalContent(
                 value = draft,
                 onValueChange = { new ->
                     if (new.contains('\n')) {
+                        // IME may commit "pasted text\n" in one go; forward the text
+                        // before the newline instead of discarding the whole payload.
+                        val before = new.substringBefore('\n')
+                        if (before.isNotEmpty()) actions.onType(before)
                         actions.onEnter()
                         setDraft("")
                     } else {
+                        // Forward the ENTIRE newly committed text. An IME clipboard paste
+                        // commits the whole clip at once; the previous lastOrNull() kept
+                        // only the final character and silently dropped the rest.
+                        var common = 0
+                        val limit = minOf(draft.length, new.length)
+                        while (common < limit && draft[common] == new[common]) common++
                         when {
-                            new.length > draft.length ->
-                                new.lastOrNull()?.let { actions.onType(it.toString()) }
-                            new.length < draft.length -> actions.onType("\u007F")
+                            new.length > draft.length -> {
+                                val inserted = new.substring(common)
+                                if (inserted.isNotEmpty()) actions.onType(inserted)
+                            }
+                            new.length < draft.length -> {
+                                repeat(draft.length - new.length) { actions.onType("\u007F") }
+                            }
                         }
                         setDraft(new)
                     }
@@ -248,13 +265,10 @@ private fun TerminalContent(
                     .focusRequester(focusRequester)
                     .onKeyEvent { event ->
                         val native = event.nativeKeyEvent
-                        val modifierMask = android.view.KeyEvent.META_CTRL_ON or
-                            android.view.KeyEvent.META_ALT_ON or
-                            android.view.KeyEvent.META_META_ON
                         when (native.keyCode) {
                             android.view.KeyEvent.KEYCODE_ENTER,
                             android.view.KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                                actions.onEnter(); setDraft(""); true
+                                actions.onEnter(); true
                             }
                             android.view.KeyEvent.KEYCODE_DEL -> { actions.onType("\u007F"); true }
                             android.view.KeyEvent.KEYCODE_TAB -> { actions.onType("\t"); true }
@@ -265,8 +279,16 @@ private fun TerminalContent(
                             android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> { actions.onType("\u001B[C"); true }
                             else -> {
                                 val unicode = native.unicodeChar
-                                if (unicode != 0 && native.metaState and modifierMask == 0) {
-                                    actions.onType(unicode.toChar().toString())
+                                if (unicode != 0 && native.metaState and
+                                    (android.view.KeyEvent.META_CTRL_ON or
+                                        android.view.KeyEvent.META_ALT_ON or
+                                        android.view.KeyEvent.META_META_ON) == 0
+                                ) {
+                                    val ch = unicode.toChar()
+                                    actions.onType(ch.toString())
+                                    // Mirroring the char into the draft makes the
+                                    // subsequent TextField onValueChange a no-op diff.
+                                    setDraft(draft + ch)
                                     true
                                 } else {
                                     false

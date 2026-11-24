@@ -15,9 +15,12 @@ extra["androidTargetCompatibility"] = JavaVersion.VERSION_21
 extra["managerVersionCode"] = getVersionCode()
 extra["managerVersionName"] = getVersionName()
 
-// Semantic version 3.4.0 -> 30400. A fixed, meaningful code (instead of
-// 30000 + git commit count) keeps the bundled-LKM version check stable: an
-// unrelated commit must not make the manager think a new LKM is available.
-fun getVersionCode(): Int = 30400
+// Fixed semantic version for 3.4.1 (34100). Two reasons for a fixed code:
+// 1) It must never be derived from the git commit count, which drifts with every
+//    unrelated commit and makes version comparisons unreliable.
+// 2) It must stay ABOVE the historical 30000 + commit-count train, whose last
+//    released value was 32760. A lower code (e.g. the previous 30400) makes the
+//    system treat an update as a downgrade and blocks installation.
+fun getVersionCode(): Int = 34100
 
-fun getVersionName(): String = "3.4.0"
+fun getVersionName(): String = "3.4.1"

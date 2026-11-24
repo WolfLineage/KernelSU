@@ -53,7 +53,11 @@ internal suspend fun isDownloadAvailable(uri: Uri): Boolean = withContext(Dispat
 
 fun checkNewVersion(): LatestVersionInfo {
     if (!isNetworkAvailable(ksuApp)) return LatestVersionInfo()
-    val url = "https://api.github.com/repos/tiann/KernelSU/releases/latest"
+    // YuSU is a separate fork with its own version train and package name. Checking
+    // upstream tiann/KernelSU here compares two unrelated release lines and makes the
+    // "new version available" card stick forever (and can offer an incompatible APK).
+    // Always check this fork's own releases instead.
+    val url = "https://api.github.com/repos/WolfLineage/KernelSU/releases/latest"
     // default null value if failed
     val defaultValue = LatestVersionInfo()
     runCatching {
@@ -70,13 +74,15 @@ fun checkNewVersion(): LatestVersionInfo {
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
                     val name = asset.getString("name")
-                    if (!name.endsWith(".apk")) {
+                    // Only consider YuSU release APKs; skip kernel modules, ksud
+                    // binaries and any other artifact in the release.
+                    if (!name.startsWith("YuSU_") || !name.endsWith(".apk")) {
                         continue
                     }
 
+                    // e.g. YuSU_v3.4.1_34100-release.apk -> versionCode 34100
                     val regex = Regex("v(.+?)_(\\d+)-")
                     val matchResult = regex.find(name) ?: continue
-                    matchResult.groupValues[1]
                     val versionCode = matchResult.groupValues[2].toInt()
                     val downloadUrl = asset.getString("browser_download_url")
 

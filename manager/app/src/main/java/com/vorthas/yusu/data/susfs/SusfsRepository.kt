@@ -181,9 +181,20 @@ object SusfsRepository {
         return stage
     }
 
+    /** The CLI symlink and its helper binary must both be present and executable. */
+    private fun engineToolsReady(): Boolean =
+        exec("test -x $SUSFS_BIN").isSuccess &&
+            exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
+            exec("test -L $CLI").isSuccess
+
     private fun isCurrent(): Boolean =
         output("cat $NATIVE_DIR/.installed 2>/dev/null") == "${BuildConfig.VERSION_CODE}:$ENGINE_MARKER" &&
             exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
+            exec("test -x $SUSFS_BIN").isSuccess &&
+            exec("test -L $CLI").isSuccess &&
+            exec("test -L $POST_FS_LINK").isSuccess &&
+            exec("test -L $BOOT_LINK").isSuccess &&
+            exec("test -L $SERVICE_LINK").isSuccess &&
             exec("test -f $POST_FS_HOOK").isSuccess
 
     /** Install or refresh the native engine and boot hooks. Existing user config is preserved. */
@@ -315,6 +326,27 @@ object SusfsRepository {
         if (!result.isSuccess) error(text.ifBlank { "Failed to load SuSFS LKM" })
         text.ifBlank { "LKM loaded" }
     }.onFailure { Log.e(TAG, "loadLkm failed", it) }
+
+    /**
+     * Close the first-boot gap after an LKM patch: the boot hook runs in post-fs-data,
+     * before the manager has installed the engine on that very first boot, so it exits
+     * early and the guard LKM is never loaded until the next reboot. When the engine is
+     * already integrated but the kernel-side probe is inactive, load the LKM now.
+     * No-op for built-in kernels, when already active, or when the engine is not ready.
+     */
+    fun ensureLoadedOnBoot(): Result<String?> = runCatching {
+        if (!isRoot()) return@runCatching null
+        val builtIn = exec("zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_KSU_SUSFS=y'").isSuccess
+        if (builtIn) return@runCatching null
+        if (!engineToolsReady()) return@runCatching null
+        val version = output("$SUSFS_BIN show version 2>/dev/null").lineSequence().firstOrNull()?.takeIf { it.isNotBlank() }
+        val features = output("$SUSFS_BIN show enabled_features 2>/dev/null").lines().count { it.isNotBlank() }
+        if (version != null && features > 0) return@runCatching null // already active
+        val result = exec("$CLI --load-lkm")
+        val text = (result.out + result.err).joinToString("\n").trim()
+        if (!result.isSuccess) error(text.ifBlank { "Failed to load SuSFS LKM" })
+        text.ifBlank { "LKM loaded on startup" }
+    }.onFailure { Log.w(TAG, "ensureLoadedOnBoot skipped/failed", it) }
 
     fun applyNow(): Result<String> = runCatching {
         val result = exec("$CLI --action")

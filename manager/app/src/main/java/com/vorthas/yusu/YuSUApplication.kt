@@ -66,7 +66,13 @@ class YuSUApplication : Application(), ViewModelStoreOwner {
         // Install the bundled SuSFS LKM engine and boot hooks outside the main thread.
         // The repository is idempotent and preserves user configuration on upgrades.
         Thread {
-            if (SusfsRepository.isIntegrationEnabled()) SusfsRepository.install()
+            if (SusfsRepository.isIntegrationEnabled()) {
+                SusfsRepository.install()
+                // On the first boot after an LKM patch the post-fs-data hook runs before
+                // the engine is installed and skips loading. Load it here so SuSFS does
+                // not stay "inactive" until a second reboot.
+                SusfsRepository.ensureLoadedOnBoot()
+            }
         }.apply { isDaemon = true; name = "susfs-install" }.start()
 
         okhttpClient =
