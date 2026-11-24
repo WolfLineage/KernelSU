@@ -12,6 +12,10 @@ jobs:
   release:
     needs:
       - build-manager
+    # macOS runners are frequently cancelled while queued on this repo. Still
+    # publish from the artifacts that did build (Android LKM/ksud/ksuinit/manager);
+    # the two darwin ksud variants are optional extras, not required for release.
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: write
