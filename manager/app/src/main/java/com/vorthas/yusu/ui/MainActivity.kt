@@ -102,6 +102,7 @@ import com.vorthas.yusu.ui.theme.LocalEnableBlur
 import com.vorthas.yusu.ui.theme.LocalEnableFloatingBottomBar
 import com.vorthas.yusu.ui.theme.LocalEnableFloatingBottomBarBlur
 import com.vorthas.yusu.ui.theme.LocalEnableNavigationBadge
+import com.vorthas.yusu.ui.theme.LocalRailAnimating
 import com.vorthas.yusu.ui.theme.LocalModuleDescriptionMaxLines
 import com.vorthas.yusu.ui.util.getSuperuserCount
 import com.vorthas.yusu.ui.util.install
@@ -462,8 +463,11 @@ fun MainScreen(
             val startInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
                 .only(WindowInsetsSides.Start)
             val navBarBottomPadding = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-
-            when (uiMode) {
+            // Shared with page-level BlurredBar: skip the costly blur shader while the
+            // rail morphs, without disabling the rail's expand/collapse itself.
+            val railAnimating = remember { mutableStateOf(false) }
+            CompositionLocalProvider(LocalRailAnimating provides railAnimating) {
+                when (uiMode) {
                 UiMode.Material -> androidx.compose.material3.Scaffold(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
                 ) {
@@ -492,6 +496,7 @@ fun MainScreen(
                     }
                 }
             }
+            } // CompositionLocalProvider(LocalRailAnimating)
         } else {
             val bottomBar = @Composable {
                 Box(

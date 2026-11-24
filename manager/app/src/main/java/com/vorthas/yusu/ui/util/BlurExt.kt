@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import com.vorthas.yusu.ui.theme.LocalRailAnimating
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -28,8 +29,12 @@ fun BlurredBar(
     blurActive: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    // While the tablet rail morphs, its width change forces this page to re-measure
+    // every frame. Skipping the blur shader for that short window avoids the jank;
+    // the backdrop stays non-null so the bar colour does not flicker.
+    val railAnimating = LocalRailAnimating.current.value
     Box(
-        modifier = if (blurActive && backdrop != null) {
+        modifier = if (blurActive && !railAnimating && backdrop != null) {
             Modifier.textureBlur(
                 backdrop = backdrop,
                 shape = RectangleShape,

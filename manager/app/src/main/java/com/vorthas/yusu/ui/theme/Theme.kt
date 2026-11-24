@@ -134,6 +134,17 @@ val LocalColorMode = staticCompositionLocalOf { 0 }
 
 val LocalEnableBlur = staticCompositionLocalOf { false }
 
+/**
+ * True while the tablet navigation rail is animating open/closed. The rail's width
+ * change forces the whole sibling page to re-measure every frame; combined with the
+ * page-wide blur backdrop this drops frames on large screens. Blur consumers read
+ * this flag and skip the expensive shader for the brief animation window, while the
+ * rail keeps its full expand/collapse behaviour.
+ */
+val LocalRailAnimating = staticCompositionLocalOf<androidx.compose.runtime.MutableState<Boolean>> {
+    androidx.compose.runtime.mutableStateOf(false)
+}
+
 val LocalEnableFloatingBottomBar = staticCompositionLocalOf { false }
 
 val LocalEnableFloatingBottomBarBlur = staticCompositionLocalOf { false }
