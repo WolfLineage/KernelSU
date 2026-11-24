@@ -14,7 +14,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -87,6 +88,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 
+/**
+ * Bottom inset for the terminal: when the IME is up it covers the floating bottom
+ * bar, so use max(bar space, keyboard) instead of adding them — otherwise a large
+ * empty band appears between the toolbar and the keyboard.
+ */
+@Composable
+private fun terminalBottomPadding(bottomPadding: Dp): Dp {
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val barBottom = if (bottomPadding == Dp.Unspecified) 0.dp else bottomPadding
+    return maxOf(barBottom, imeBottom)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TerminalScreenMaterial(
@@ -119,8 +132,7 @@ internal fun TerminalScreenMaterial(
             onResize,
             Modifier
                 .padding(padding)
-                .padding(bottom = if (bottomPadding == Dp.Unspecified) 0.dp else bottomPadding)
-                .imePadding(),
+                .padding(bottom = terminalBottomPadding(bottomPadding)),
             isVisible,
         )
     }
@@ -155,8 +167,7 @@ internal fun TerminalScreenMiuix(
             onResize,
             Modifier
                 .padding(padding)
-                .padding(bottom = if (bottomPadding == Dp.Unspecified) 0.dp else bottomPadding)
-                .imePadding(),
+                .padding(bottom = terminalBottomPadding(bottomPadding)),
             isVisible,
         )
     }

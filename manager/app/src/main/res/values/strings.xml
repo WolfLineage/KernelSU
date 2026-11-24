@@ -510,5 +510,6 @@
     <string name="all_files_access_message">Grant access to all files so the manager can open downloads from other apps and locate them at their real paths.</string>
     <string name="all_files_access_grant">Open settings</string>
     <string name="all_files_access_later">Later</string>
+    <string name="pick_file_hint">Select a file to send to the app</string>
     <string name="install_apk_prompt">Install this APK?</string>
 </resources>

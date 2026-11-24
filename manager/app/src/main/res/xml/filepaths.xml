@@ -3,4 +3,7 @@
 <paths>
     <cache-path name="cache" path="."/>
     <external-path name="downloads" path="Download"/>
+    <!-- The manager is root and the user explicitly picks the file to hand over,
+         so allow any path to be exposed via a granted content Uri. -->
+    <root-path name="root" path="."/>
 </paths>

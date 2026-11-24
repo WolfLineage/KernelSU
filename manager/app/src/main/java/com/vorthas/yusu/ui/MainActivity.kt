@@ -129,6 +129,8 @@ class MainActivity : ComponentActivity() {
 
     private val intentChannel = Channel<Intent>(capacity = Channel.BUFFERED)
     private var contentReady = false
+    /** Set while composed; hands a picked file Uri back to the calling app. */
+    private var pickResultSender: ((String?) -> Unit)? = null
     private var splashStartedAt = 0L
     // External file opens skip the decorative splash delay so the jump feels instant.
     private var splashAnimationDurationMs = 500L
@@ -140,7 +142,10 @@ class MainActivity : ComponentActivity() {
         splashStartedAt = SystemClock.uptimeMillis()
         super.onCreate(savedInstanceState)
         // Opening a file from another app should land immediately, not wait out the splash.
-        if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_INSTALL_PACKAGE) {
+        if (intent?.action == Intent.ACTION_VIEW ||
+            intent?.action == Intent.ACTION_INSTALL_PACKAGE ||
+            intent?.action == Intent.ACTION_GET_CONTENT
+        ) {
             splashAnimationDurationMs = 0L
         }
         // The switch defaults to off; enforce it once the manager is opened so the
@@ -157,6 +162,35 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val viewModel = viewModel<MainActivityViewModel>()
+            // Upload picker mode: hand the selected file back to the calling app.
+            // StartPick is dispatched through IntentDispatcher (covers cold + warm start).
+            pickResultSender = { path ->
+                if (path == null) {
+                    // User backed out of the picker.
+                    setResult(android.app.Activity.RESULT_CANCELED)
+                    viewModel.endPick()
+                    finish()
+                } else {
+                    val uri = runCatching {
+                        androidx.core.content.FileProvider.getUriForFile(
+                            this@MainActivity,
+                            "${packageName}.fileprovider",
+                            java.io.File(path),
+                        )
+                    }.getOrNull()
+                    if (uri != null) {
+                        setResult(
+                            android.app.Activity.RESULT_OK,
+                            Intent().setDataAndType(uri, contentResolver.getType(uri))
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                        )
+                        viewModel.endPick()
+                        finish()
+                    } else {
+                        Toast.makeText(this@MainActivity, R.string.open_failed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             val selectedMainPage by viewModel.selectedMainPage.collectAsStateWithLifecycle()
             val appSettings = uiState.appSettings
@@ -198,6 +232,7 @@ class MainActivity : ComponentActivity() {
                 },
                 LocalNavigator provides navigator,
                 LocalActivityViewModel provides viewModel,
+                LocalPickResult provides { path -> pickResultSender?.invoke(path) },
                 LocalDensity provides density,
                 LocalColorMode provides appSettings.colorMode.value,
                 LocalEnableBlur provides uiState.enableBlur,
@@ -323,6 +358,9 @@ val LocalActivityViewModel = staticCompositionLocalOf<com.vorthas.yusu.ui.viewmo
     error("LocalActivityViewModel not provided")
 }
 
+/** Hands a picked file path back to the app that launched the upload picker. */
+val LocalPickResult = staticCompositionLocalOf<(String?) -> Unit> { {} }
+
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScreen(
@@ -345,6 +383,8 @@ fun MainScreen(
     // opens of the same file still switch tabs.
     val revealActivityVm = LocalActivityViewModel.current
     val revealSeq by revealActivityVm.revealRequestSeq.collectAsStateWithLifecycle()
+    val pickMode by revealActivityVm.pickMode.collectAsStateWithLifecycle()
+    val onPick = LocalPickResult.current
     LaunchedEffect(revealSeq) {
         if (revealSeq > 0) {
             mainPagerState.animateToPage(com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE)
@@ -472,6 +512,8 @@ fun MainScreen(
                         3 -> if (contentReady || isCurrentPage) FileManagerScreen(
                             bottomPadding = bottomInnerPadding,
                             usePendingReveal = true,
+                            pickMode = pickMode,
+                            onPick = onPick,
                             onRunScript = { command ->
                                 mainPagerState.animateToPage(4)
                                 com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)

@@ -79,6 +79,9 @@ private sealed interface PendingAction {
 
     /** Open any file from another app — reveal it in the file manager. */
     data class RevealFile(val uri: Uri, val displayName: String) : PendingAction
+
+    /** Launched by another app to pick a file for upload. */
+    data object StartPick : PendingAction
 }
 
 private sealed interface KsuDeepLink {
@@ -103,6 +106,9 @@ fun getDisplayName(uri: Uri): String {
  * Returns null if the intent carries no recognized action.
  */
 private fun resolveIntent(intent: Intent): PendingAction? {
+    // Upload picker launched by another app.
+    if (intent.action == Intent.ACTION_GET_CONTENT) return PendingAction.StartPick
+
     // DownloadService notification: install module
     if (intent.action == DownloadService.ACTION_INSTALL_MODULE) {
         val token = intent.getStringExtra(DownloadService.EXTRA_TOKEN)?.takeIf { it.isNotBlank() } ?: return null
@@ -187,6 +193,10 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
                     return@CollectIntentChannel
                 }
                 openModuleZip(action.uri)
+            }
+
+            is PendingAction.StartPick -> {
+                activityViewModel.startPick()
             }
 
             is PendingAction.ExecuteAction -> {

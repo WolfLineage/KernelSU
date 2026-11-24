@@ -44,6 +44,18 @@ class MainActivityViewModel(
 
     fun consumeReveal() { _pendingRevealPath.value = null }
 
+    /** True when launched by ACTION_GET_CONTENT: tap a file to hand its Uri back. */
+    private val _pickMode = MutableStateFlow(false)
+    val pickMode: StateFlow<Boolean> = _pickMode.asStateFlow()
+
+    fun startPick() {
+        _pickMode.value = true
+        mainPageState.updateSelectedPage(FILE_MANAGER_PAGE)
+        _revealRequestSeq.value += 1
+    }
+
+    fun endPick() { _pickMode.value = false }
+
     init {
         prefs.registerOnSharedPreferenceChangeListener(listener)
     }

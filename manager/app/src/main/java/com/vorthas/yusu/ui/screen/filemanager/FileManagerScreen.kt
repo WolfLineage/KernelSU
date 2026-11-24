@@ -34,6 +34,9 @@ fun FileManagerScreen(
     requestId: Long = 0L,
     /** True for the main-screen pager instance: consume external open requests. */
     usePendingReveal: Boolean = false,
+    /** ACTION_GET_CONTENT picker: tapping a file returns its Uri to the caller. */
+    pickMode: Boolean = false,
+    onPick: (String?) -> Unit = {},
 ) {
     val navigator = LocalNavigator.current
     val uiMode = LocalUiMode.current
@@ -83,6 +86,12 @@ fun FileManagerScreen(
     BackHandler(enabled = state.panes.getOrNull(state.activePane)?.selected?.isNotEmpty() == true) {
         viewModel.clearSelection(state.activePane)
     }
+    // Picker mode: backing out cancels the request to the calling app.
+    androidx.activity.compose.BackHandler(enabled = pickMode) { onPick(null) }
+
+    LaunchedEffect(pickMode) {
+        if (pickMode) Toast.makeText(context, R.string.pick_file_hint, Toast.LENGTH_SHORT).show()
+    }
 
     LaunchedEffect(state.message) {
         state.message?.let { message ->
@@ -111,6 +120,11 @@ fun FileManagerScreen(
             return
         }
         val target = resolve(path)
+        if (pickMode && !FileManagerRepository.isDirectory(target)) {
+            // Upload picker: hand the real file back to the calling app.
+            onPick(target)
+            return
+        }
         if (FileManagerRepository.isDirectory(target)) {
             viewModel.navigate(pane, target)
         } else if (FileManagerRepository.isApkPath(target)) {
