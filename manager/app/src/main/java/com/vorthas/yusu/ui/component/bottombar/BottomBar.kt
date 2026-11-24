@@ -61,6 +61,19 @@ class MainPagerState(
         }
     }
 
+    /** Jump to a page immediately (no spring animation). Used by external file
+     *  opens, where the animated transition can be cancelled by recomposition and
+     *  leave the pager stuck on the old page. */
+    fun snapToPage(targetIndex: Int) {
+        navJob?.cancel()
+        navJob = null
+        isNavigating = false
+        selectedPage = targetIndex
+        navJob = coroutineScope.launch {
+            pagerState.scrollToPage(targetIndex)
+        }
+    }
+
     fun syncPage() {
         if (!isNavigating && selectedPage != pagerState.currentPage) {
             selectedPage = pagerState.currentPage

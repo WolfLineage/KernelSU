@@ -402,7 +402,9 @@ fun MainScreen(
     val onPick = LocalPickResult.current
     LaunchedEffect(revealSeq) {
         if (revealSeq > 0) {
-            mainPagerState.animateToPage(com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE)
+            // Snap instead of spring-animating: on cold external opens the animated
+            // transition gets cancelled by recomposition and leaves the pager on page 0.
+            mainPagerState.snapToPage(com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE)
         }
     }
     val isFullFeatured = Natives.isFullFeatured()
