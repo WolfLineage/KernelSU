@@ -19,7 +19,7 @@ check_susfs_support() {
 }
 
 kernel_release() {
-    rel="$(cat /proc/sys/kernel/osrelease 2>/dev/null | head -n 1)"
+    rel="$(head -n 1 /proc/sys/kernel/osrelease 2>/dev/null)"
     [ -n "$rel" ] || rel="$(uname -r 2>/dev/null | head -n 1)"
     printf '%s\n' "$rel"
 }

@@ -12,30 +12,13 @@ SUSFS_BIN=/data/adb/ksu/bin/ksu_susfs
 export SUSFS_MIN_VERSION="v2.2.0"
 ENGINE_VERSION="native-10"
 
+# Runtime path under /data/adb; ShellCheck cannot resolve it from the repo.
+# shellcheck disable=SC1091
 . "$NATIVE_DIR/core/utils.sh"
 
 [ -n "$WEBUI_QUIET" ] && [ "${NO_BANNER:-0}" = "0" ] && echo "YuSU native SuSFS $ENGINE_VERSION"
 
 susfs() { "$SUSFS_BIN" "$@"; }
-
-version_ge() {
-	ver1="${1#v}"
-	ver2="${2#v}"
-
-	major1=$(echo "$ver1" | cut -d. -f1); major1=${major1:-0}
-	minor1=$(echo "$ver1" | cut -d. -f2); minor1=${minor1:-0}
-	patch1=$(echo "$ver1" | cut -d. -f3); patch1=${patch1:-0}
-
-	major2=$(echo "$ver2" | cut -d. -f1); major2=${major2:-0}
-	minor2=$(echo "$ver2" | cut -d. -f2); minor2=${minor2:-0}
-	patch2=$(echo "$ver2" | cut -d. -f3); patch2=${patch2:-0}
-
-	[ "$major1" -gt "$major2" ] && return 0
-	[ "$major1" -lt "$major2" ] && return 1
-	[ "$minor1" -gt "$minor2" ] && return 0
-	[ "$minor1" -lt "$minor2" ] && return 1
-	[ "$patch1" -ge "$patch2" ]
-}
 
 [ ! -d "$PERSISTENT_DIR" ] && mkdir -p "$PERSISTENT_DIR"
 
@@ -148,6 +131,8 @@ apply_kstat() {
 			add)
 				if [ -n "$args" ]; then
 					echo "[>] add_sus_kstat_statically $path $args"
+					# $args is a list of CLI flags; word splitting is intentional.
+					# shellcheck disable=SC2086
 					susfs add_sus_kstat_statically "$path" $args
 				else
 					echo "[>] add_sus_kstat $path"
@@ -173,8 +158,11 @@ apply_open_redirect() {
 		target=$(echo "$line" | awk '{print $1}')
 		redirect=$(echo "$line" | awk '{print $2}')
 		scheme=$(echo "$line" | awk '{print $3}')
-		[ -z "$target" ] || [ -z "$redirect" ] || [ -z "$scheme" ] && continue
-		[ -e "$target" ] && [ -e "$redirect" ] || { echo "[!] skip: $target -> $redirect (missing endpoint)"; continue; }
+		if [ -z "$target" ] || [ -z "$redirect" ] || [ -z "$scheme" ]; then continue; fi
+		if [ ! -e "$target" ] || [ ! -e "$redirect" ]; then
+			echo "[!] skip: $target -> $redirect (missing endpoint)"
+			continue
+		fi
 		echo "[>] add_open_redirect $target -> $redirect (scheme $scheme)"
 		susfs add_open_redirect "$target" "$redirect" "$scheme"
 	done

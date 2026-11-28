@@ -7,14 +7,14 @@ PATH=/data/adb/ksu/bin:/data/data/com.termux/files/usr/bin:$PATH
 
 CONF_FILE="/data/adb/ksu/susfs/config/tmp_uname.txt"
 
-base_ver=$(cat /proc/version | awk '{print $3}' | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+base_ver=$(awk '{print $3}' /proc/version | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
 build_info="#1 SMP PREEMPT $(getprop ro.build.date | tr -s ' ')"
 
 if ksud boot-info current-kmi >/dev/null 2>&1; then
 	kmi_tag=$(ksud boot-info current-kmi | cut -d'-' -f1)
-	final_release="${base_ver}-${kmi_tag}-11-g$(cat /proc/sys/kernel/random/boot_id | tr -d '-' | cut -c1-12)"
+	final_release="${base_ver}-${kmi_tag}-11-g$(tr -d '-' < /proc/sys/kernel/random/boot_id | cut -c1-12)"
 else
-	final_release="${base_ver}-g$(cat /proc/sys/kernel/random/boot_id | tr -d '-' | cut -c1-8)"
+	final_release="${base_ver}-g$(tr -d '-' < /proc/sys/kernel/random/boot_id | cut -c1-8)"
 fi
 
 cat > "$CONF_FILE" << EOF
