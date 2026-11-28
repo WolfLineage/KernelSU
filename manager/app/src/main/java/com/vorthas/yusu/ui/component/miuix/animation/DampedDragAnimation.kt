@@ -70,7 +70,11 @@ class DampedDragAnimation(
     val scaleY: Float get() = scaleYAnimation.value
     val velocity: Float get() = velocityAnimation.value
 
-    val modifier: Modifier = Modifier.pointerInput(Unit) {
+    // Key the gesture on this instance: the bottom bar recreates the animation when
+    // the visible tab count changes. A fixed key would leave pointer input bound to
+    // the previous instance, so taps still navigated the pager but the new capsule
+    // never received press/drag callbacks (and could stay stuck after a long press).
+    val modifier: Modifier = Modifier.pointerInput(this) {
         inspectDragGestures(
             onDragStart = { down ->
                 onDragStarted(down.position)

@@ -39,7 +39,7 @@ data class ExtractResult(val files: Int, val skipped: Int)
  * layout then blocks the main thread indefinitely.
  */
 enum class FileKind {
-    TEXT, ARCHIVE, ELF, DEX, IMAGE, PDF, SQLITE, BINARY,
+    TEXT, ARCHIVE, ELF, DEX, IMAGE, VIDEO, PDF, SQLITE, BINARY,
 }
 
 /** One bounded read. Holds at most `bytes.size` bytes in memory. */
@@ -550,6 +550,8 @@ sealed class InstallResult {
             head.prefix(0x89, 0x50, 0x4E, 0x47) || head.prefix(0xFF, 0xD8, 0xFF) ||
                 head.ascii("GIF8") || head.ascii("BM") ||
                 (head.ascii("RIFF") && head.size >= 12 && head.asciiAt(8, "WEBP")) -> FileKind.IMAGE
+            head.asciiAt(4, "ftyp") -> FileKind.VIDEO
+            head.prefix(0x1A, 0x45, 0xDF, 0xA3) -> FileKind.VIDEO
             head.ascii("%PDF") -> FileKind.PDF
             head.ascii("SQLite format 3") -> FileKind.SQLITE
             head.prefix(0xFF, 0xFE) || head.prefix(0xFE, 0xFF) ||
@@ -565,6 +567,8 @@ sealed class InstallResult {
             listOf("so", "o", "elf").any { name.endsWith(".$it") } -> FileKind.ELF
             name.endsWith(".dex") -> FileKind.DEX
             listOf("png", "jpg", "jpeg", "gif", "webp", "bmp").any { name.endsWith(".$it") } -> FileKind.IMAGE
+            listOf("mp4", "mkv", "webm", "mov", "avi", "flv", "3gp", "ts", "m4v")
+                .any { name.endsWith(".$it") } -> FileKind.VIDEO
             name.endsWith(".pdf") -> FileKind.PDF
             listOf("db", "sqlite", "sqlite3").any { name.endsWith(".$it") } -> FileKind.SQLITE
             else -> null

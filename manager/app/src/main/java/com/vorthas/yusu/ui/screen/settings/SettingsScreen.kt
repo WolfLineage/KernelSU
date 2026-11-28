@@ -62,6 +62,8 @@ fun SettingPager(
         onSetUsbDebuggingEnabled = viewModel::setUsbDebuggingEnabled,
         onSetAutoJailbreak = viewModel::setAutoJailbreak,
         onSetUseSoftReboot = viewModel::setUseSoftReboot,
+        onSetEnableFileManager = viewModel::setEnableFileManager,
+        onSetEnableTerminal = viewModel::setEnableTerminal,
     )
 
     when (LocalUiMode.current) {

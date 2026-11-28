@@ -44,6 +44,8 @@ class SettingsViewModel(
             val enableFloatingBottomBar = repo.enableFloatingBottomBar
             val enableFloatingBottomBarBlur = repo.enableFloatingBottomBarBlur
             val enableNavigationBadge = repo.enableNavigationBadge
+            val enableFileManager = repo.enableFileManager
+            val enableTerminal = repo.enableTerminal
             val pageScale = repo.pageScale
             val moduleDescriptionMaxLines = repo.moduleDescriptionMaxLines
             val enableWebDebugging = repo.enableWebDebugging
@@ -108,6 +110,8 @@ class SettingsViewModel(
                     enableFloatingBottomBar = enableFloatingBottomBar,
                     enableFloatingBottomBarBlur = enableFloatingBottomBarBlur,
                     enableNavigationBadge = enableNavigationBadge,
+                    enableFileManager = enableFileManager,
+                    enableTerminal = enableTerminal,
                     pageScale = pageScale,
                     moduleDescriptionMaxLines = moduleDescriptionMaxLines,
                     enableWebDebugging = enableWebDebugging,
@@ -254,6 +258,16 @@ class SettingsViewModel(
     fun setEnableNavigationBadge(enabled: Boolean) {
         repo.enableNavigationBadge = enabled
         _uiState.update { it.copy(enableNavigationBadge = enabled) }
+    }
+
+    fun setEnableFileManager(enabled: Boolean) {
+        repo.enableFileManager = enabled
+        _uiState.update { it.copy(enableFileManager = enabled) }
+    }
+
+    fun setEnableTerminal(enabled: Boolean) {
+        repo.enableTerminal = enabled
+        _uiState.update { it.copy(enableTerminal = enabled) }
     }
 
     fun setPageScale(scale: Float) {

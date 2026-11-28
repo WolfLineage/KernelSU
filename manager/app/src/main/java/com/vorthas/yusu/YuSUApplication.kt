@@ -41,6 +41,7 @@ class YuSUApplication : Application(), ViewModelStoreOwner {
     override fun onCreate() {
         super.onCreate()
         ksuApp = this
+        SettingsRepositoryImpl().syncFeatureComponents()
 
         if (!isUserUnlocked()) {
             return

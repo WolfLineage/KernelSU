@@ -5,7 +5,7 @@ package com.vorthas.yusu.ui.screen.texteditor
  * KEY = blue keywords, TAG = amber assignment/variable, VALUE = amber strings,
  * COMMENT = muted grey, TIMESTAMP = muted shebang.
  */
-enum class ShellToken { KEY, TAG, VALUE, COMMENT, TIMESTAMP, ERROR, WARNING }
+enum class ShellToken { KEY, TAG, VALUE, ASSIGN, COMMENT, TIMESTAMP, ERROR, WARNING }
 
 /**
  * Line-based shell highlighter ported from the reference tool's DocumentSyntax.ranges.
@@ -66,7 +66,7 @@ object ShellSyntax {
                         var j = firstSpace
                         while (j < slice.length && isWordChar(slice[j])) j++
                         if (j > firstSpace && j < slice.length && slice[j] == '=') {
-                            add(firstSpace, j, ShellToken.TAG)
+                            add(firstSpace, j, ShellToken.ASSIGN)
                         }
                     }
                     // Keywords, variables, strings — single left-to-right pass.

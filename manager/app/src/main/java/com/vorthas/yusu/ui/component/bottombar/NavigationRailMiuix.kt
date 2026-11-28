@@ -20,6 +20,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun NavigationRailMiuix(
     navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean,
+    enableTerminal: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val fullFeatured = Natives.isFullFeatured()
@@ -27,8 +29,9 @@ fun NavigationRailMiuix(
 
     val mainState = LocalMainPagerState.current
 
-    val items = BottomBarDestination.entries.map { destination ->
-        Pair(stringResource(destination.label), destination.icon)
+    val visible = visibleDestinations(enableFileManager, enableTerminal)
+    val items = visible.map { item ->
+        Pair(stringResource(item.destination.label), item.destination.icon)
     }
     val settingsRepo = remember { SettingsRepositoryImpl() }
     val state = rememberNavigationRailState(
@@ -58,14 +61,15 @@ fun NavigationRailMiuix(
         collapseContentDescription = stringResource(R.string.nav_rail_collapse),
     ) {
         items.forEachIndexed { index, (label, icon) ->
+            val page = visible[index].page
             NavigationRailItem(
-                selected = mainState.selectedPage == index,
+                selected = mainState.selectedPage == page,
                 onClick = {
-                    mainState.animateToPage(index)
+                    mainState.animateToPage(page)
                 },
                 icon = icon,
                 label = label,
-                badge = navigationBadgeFor(index, navigationBadge),
+                badge = navigationBadgeFor(page, navigationBadge),
             )
         }
     }

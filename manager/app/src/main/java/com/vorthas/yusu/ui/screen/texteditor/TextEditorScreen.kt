@@ -3,25 +3,33 @@ package com.vorthas.yusu.ui.screen.texteditor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
+import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.widget.MediaController
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -38,15 +46,21 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -81,12 +95,6 @@ private fun editorBackground(): Color = when (LocalUiMode.current) {
     UiMode.Material -> MaterialTheme.colorScheme.surface
 }
 
-@Composable
-private fun editorAccent(): Color = when (LocalUiMode.current) {
-    UiMode.Miuix -> MiuixTheme.colorScheme.primary
-    UiMode.Material -> MaterialTheme.colorScheme.primary
-}
-
 /**
  * MT-style shell: one shared top bar + content + bottom symbol bar. The same frame is used
  * for the editor, hex viewer and archive browser so every file type feels identical.
@@ -114,6 +122,7 @@ internal fun TextEditorContent(state: TextEditorUiState, actions: TextEditorActi
                 title = title,
                 statusLine = when (state.mode) {
                     FileViewMode.IMAGE -> "图片"
+                    FileViewMode.VIDEO -> "视频"
                     FileViewMode.CONTINUOUS -> if (state.isHex) "十六进制" else "文本"
                     else -> "1:1  UTF-8"
                 },
@@ -138,6 +147,7 @@ internal fun TextEditorContent(state: TextEditorUiState, actions: TextEditorActi
                     FileViewMode.CONTINUOUS -> ContinuousViewer(state, contentActions)
                     FileViewMode.ARCHIVE -> ArchiveViewer(state, contentActions)
                     FileViewMode.IMAGE -> ImageViewer(state)
+                    FileViewMode.VIDEO -> VideoViewer(state)
                     FileViewMode.SQLITE -> SqliteViewer(state)
                     FileViewMode.PDF -> PdfViewer(state)
                 }
@@ -145,15 +155,10 @@ internal fun TextEditorContent(state: TextEditorUiState, actions: TextEditorActi
         }
         when (state.mode) {
             FileViewMode.ARCHIVE -> MtArchiveBottomBar(onUp = actions.onArchiveUp, onBack = actions.onBack)
-            FileViewMode.IMAGE, FileViewMode.PDF, FileViewMode.SQLITE -> { /* viewer-specific bars */ }
+            FileViewMode.IMAGE, FileViewMode.VIDEO, FileViewMode.PDF, FileViewMode.SQLITE -> { /* viewer-specific bars */ }
             else -> MtSymbolBar(onInsert = { contentActions.onSymbolInsert(it) })
         }
     }
-}
-
-private fun isScriptPath(path: String): Boolean {
-    val name = path.substringAfterLast('/').lowercase()
-    return listOf(".sh", ".bash", ".zsh", ".ksh", ".fish").any { name.endsWith(it) }
 }
 
 @Composable
@@ -162,38 +167,24 @@ private fun EditableText(
     actions: TextEditorActions,
     onEditorReady: (SyntaxEditText) -> Unit = {},
 ) {
-    if (isScriptPath(state.path)) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
+    // One editor for every editable text file: the line-numbered native view. The
+    // former OutlinedTextField branch had no gutter, no pinch zoom and wrapped long
+    // lines, so the two implementations never behaved the same way.
+    AndroidView(
+        modifier = Modifier.fillMaxSize().padding(8.dp),
             factory = { context ->
-                SyntaxEditText(context).apply {
-                    onDocumentChange = { actions.onContentChange(it) }
-                    onEditorReady(this)
-                }
-            },
-            update = { view ->
-                view.setDocument(state.content)
-                view.isEnabled = !state.readOnly
-            },
-        )
-    } else {
-        OutlinedTextField(
-            value = state.content,
-            onValueChange = actions.onContentChange,
-            readOnly = state.readOnly,
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedTextColor = viewerTextColor(),
-                unfocusedTextColor = viewerTextColor(),
-                disabledTextColor = viewerTextColor(),
-                focusedContainerColor = editorBackground(),
-                unfocusedContainerColor = editorBackground(),
-                cursorColor = editorAccent(),
-            ),
-        )
-    }
+            SyntaxEditText(context).apply {
+                setLanguage(state.path)
+                onDocumentChange = { actions.onContentChange(it) }
+                onEditorReady(this)
+            }
+        },
+        update = { view ->
+            view.setLanguage(state.path)
+            view.setDocument(state.content)
+            view.isEnabled = !state.readOnly
+        },
+    )
 }
 
 /**
@@ -203,42 +194,73 @@ private fun EditableText(
 @Composable
 private fun ContinuousViewer(state: TextEditorUiState, actions: TextEditorActions) {
     val lines = state.lines
-    LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            Text(
-                text = buildString {
-                    append(FileManagerRepository.formatSize(state.fileSize))
-                    append(" · 已载入 ")
-                    append(FileManagerRepository.formatSize(state.loadedBytes))
-                    if (state.isHex) append(" · HEX 原始视图")
-                },
-                color = Color(0xFFFFB74D),
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-        }
-        items(lines) { line ->
-            Text(
-                text = if (line.isEmpty()) " " else line,
-                color = viewerTextColor(),
-                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp),
-                modifier = Modifier.padding(horizontal = 10.dp),
-            )
-        }
-        item {
-            if (state.hasMore) {
-                LaunchedEffect(state.loadedBytes) { actions.onLoadMore() }
-                Text(
-                    "继续载入…",
-                    color = Color(0xFF64B5F6),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                )
-            } else if (lines.isEmpty()) {
-                Text("（空文件）", color = viewerTextColor(), modifier = Modifier.padding(12.dp))
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            itemsIndexed(lines, key = { index, _ -> index }) { index, line ->
+                val number = state.lineNumbers.getOrNull(index) ?: (index + 1)
+                val showNumber = !state.isHex &&
+                    (index == 0 || state.lineNumbers.getOrNull(index - 1) != number)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        text = if (showNumber) number.toString() else "",
+                        color = Color(0xFF6E7681),
+                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 17.sp),
+                        modifier = Modifier.width(40.dp),
+                    )
+                    Text(
+                        text = state.lineTexts.getOrNull(index) ?: AnnotatedString(line),
+                        color = viewerTextColor(),
+                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            item {
+                if (state.hasMore) {
+                    LaunchedEffect(state.loadedBytes) { actions.onLoadMore() }
+                    Text(
+                        "继续载入…",
+                        color = Color(0xFF64B5F6),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                } else if (lines.isEmpty()) {
+                    Text("（空文件）", color = viewerTextColor(), modifier = Modifier.padding(12.dp))
+                }
             }
         }
+        // Isolated so per-frame scroll state only recomposes this small bar, not the rows.
+        Box(Modifier.align(Alignment.TopEnd)) { ContinuousScrollbar(listState) }
     }
+}
+
+@Composable
+private fun ContinuousScrollbar(listState: LazyListState) {
+    val layoutInfo = listState.layoutInfo
+    val total = layoutInfo.totalItemsCount
+    if (total <= 0) return
+    val first = listState.firstVisibleItemIndex.toFloat() +
+        listState.firstVisibleItemScrollOffset.toFloat() /
+        (layoutInfo.visibleItemsInfo.firstOrNull()?.size?.toFloat() ?: 1f)
+    val thumb = (layoutInfo.visibleItemsInfo.size.toFloat() / total).coerceIn(0.04f, 1f)
+    val progress = (first / total).coerceIn(0f, 1f - thumb)
+    Box(
+        Modifier
+            .fillMaxHeight()
+            .width(5.dp)
+            .drawBehind {
+                drawRoundRect(
+                    color = Color(0xFF8A94A6).copy(alpha = 0.55f),
+                    topLeft = androidx.compose.ui.geometry.Offset(1f, progress * size.height),
+                    size = androidx.compose.ui.geometry.Size(3f, thumb * size.height),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f),
+                )
+            },
+    )
 }
 
 @Composable
@@ -305,11 +327,41 @@ private fun ImageViewer(state: TextEditorUiState) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val image = bitmap
         if (image != null) {
-            Image(bitmap = image.asImageBitmap(), contentDescription = state.path.substringAfterLast('/'))
+            AndroidView(
+                modifier = Modifier.fillMaxSize().background(Color.Black),
+                factory = { context -> ZoomableImageView(context) },
+                update = { view -> view.setZoomBitmap(image) },
+            )
         } else {
             Text(message ?: "正在解码图片…", color = viewerTextColor())
         }
     }
+}
+
+@Composable
+private fun VideoViewer(state: TextEditorUiState) {
+    val file = state.videoFile
+    AndroidView(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        factory = { context ->
+            val view = ControlledVideoView(context)
+            val controller = MediaController(context)
+            view.playerController = controller
+            view.setMediaController(controller)
+            controller.setAnchorView(view)
+            view
+        },
+        update = { view ->
+            if (file != null && view.tag != file.path) {
+                view.tag = file.path
+                view.setVideoURI(Uri.fromFile(file))
+                view.setOnPreparedListener { player ->
+                    player.start()
+                    view.playerController?.show()
+                }
+            }
+        },
+    )
 }
 
 @Composable

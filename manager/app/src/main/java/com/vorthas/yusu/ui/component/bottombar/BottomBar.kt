@@ -122,26 +122,56 @@ fun useNavigationRail(enableFloatingBottomBar: Boolean): Boolean {
     return shouldShowSplitPane() && !(LocalUiMode.current == UiMode.Miuix && enableFloatingBottomBar)
 }
 
+internal data class VisibleDestination(
+    val page: Int,
+    val destination: BottomBarDestination,
+)
+
+/** Keep the original page indices while hiding optional destinations. */
+internal fun visibleDestinations(
+    enableFileManager: Boolean,
+    enableTerminal: Boolean,
+): List<VisibleDestination> = BottomBarDestination.entries
+    .filter {
+        when (it) {
+            BottomBarDestination.FileManager -> enableFileManager
+            BottomBarDestination.Terminal -> enableTerminal
+            else -> true
+        }
+    }
+    .map { VisibleDestination(it.ordinal, it) }
+
 @Composable
 fun BottomBar(
     blurBackdrop: LayerBackdrop?,
     backdrop: Backdrop,
     navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean = true,
+    enableTerminal: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     when (LocalUiMode.current) {
-        UiMode.Miuix -> BottomBarMiuix(blurBackdrop, backdrop, navigationBadge, modifier)
-        UiMode.Material -> BottomBarMaterial(navigationBadge)
+        UiMode.Miuix -> BottomBarMiuix(
+            blurBackdrop,
+            backdrop,
+            navigationBadge,
+            enableFileManager,
+            enableTerminal,
+            modifier,
+        )
+        UiMode.Material -> BottomBarMaterial(navigationBadge, enableFileManager, enableTerminal)
     }
 }
 
 @Composable
 fun SideRail(
     navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean = true,
+    enableTerminal: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     when (LocalUiMode.current) {
-        UiMode.Miuix -> NavigationRailMiuix(navigationBadge, modifier)
-        UiMode.Material -> NavigationRailMaterial(navigationBadge, modifier)
+        UiMode.Miuix -> NavigationRailMiuix(navigationBadge, enableFileManager, enableTerminal, modifier)
+        UiMode.Material -> NavigationRailMaterial(navigationBadge, enableFileManager, enableTerminal, modifier)
     }
 }

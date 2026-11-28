@@ -22,6 +22,10 @@ import java.security.SecureRandom
 
 private const val SETTINGS_PREFS = "settings"
 private const val KEY_USE_SOFT_REBOOT = "soft_reboot"
+private const val KEY_ENABLE_FILE_MANAGER = "enable_file_manager"
+private const val KEY_ENABLE_TERMINAL = "enable_terminal"
+// Manifest name resolves against the application namespace, not applicationId.
+private const val FILE_MANAGER_ALIAS_CLASS = "com.vorthas.yusu.ui.FileManagerEntry"
 
 /** Prefer soft reboot: always in jailbreak mode, or when the setting is enabled. */
 fun isSoftRebootPreferred(): Boolean =
@@ -111,6 +115,32 @@ class SettingsRepositoryImpl : SettingsRepository {
     override var enableNavigationBadge: Boolean
         get() = prefs.getBoolean("enable_navigation_badge", true)
         set(value) = prefs.edit { putBoolean("enable_navigation_badge", value) }
+
+    override var enableFileManager: Boolean
+        get() = prefs.getBoolean(KEY_ENABLE_FILE_MANAGER, false)
+        set(value) {
+            prefs.edit { putBoolean(KEY_ENABLE_FILE_MANAGER, value) }
+            setFileManagerEntryEnabled(value)
+        }
+
+    override var enableTerminal: Boolean
+        get() = prefs.getBoolean(KEY_ENABLE_TERMINAL, false)
+        set(value) = prefs.edit { putBoolean(KEY_ENABLE_TERMINAL, value) }
+
+    /** Reconcile the persisted preference with the manifest entry at startup. */
+    fun syncFeatureComponents() {
+        setFileManagerEntryEnabled(enableFileManager)
+    }
+
+    private fun setFileManagerEntryEnabled(enabled: Boolean) {
+        runCatching {
+            ksuApp.packageManager.setComponentEnabledSetting(
+                ComponentName(ksuApp.packageName, FILE_MANAGER_ALIAS_CLASS),
+                if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }.onFailure { Log.e("Settings", "failed to change file-manager entry state to $enabled", it) }
+    }
 
     override var navigationRailExpanded: Boolean
         get() = prefs.getBoolean("nav_rail_expanded", false)

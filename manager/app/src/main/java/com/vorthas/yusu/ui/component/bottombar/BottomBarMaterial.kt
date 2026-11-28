@@ -31,15 +31,17 @@ import com.vorthas.yusu.R
 import com.vorthas.yusu.ui.LocalMainPagerState
 
 @Composable
-fun BottomBarMaterial(navigationBadge: NavigationBadgeState) {
+fun BottomBarMaterial(
+    navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean,
+    enableTerminal: Boolean,
+) {
     val fullFeatured = Natives.isFullFeatured()
     if (!fullFeatured) return
 
     val mainPagerState = LocalMainPagerState.current
 
-    val items = BottomBarDestination.entries.map {
-        Triple(it.label, it.selectedIcon, it.unselectedIcon)
-    }
+    val items = visibleDestinations(enableFileManager, enableTerminal)
 
     ShortNavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -47,20 +49,22 @@ fun BottomBarMaterial(navigationBadge: NavigationBadgeState) {
             WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
         )
     ) {
-        items.forEachIndexed { index, (label, selectedIcon, unselectedIcon) ->
-            val selected = mainPagerState.selectedPage == index
+        items.forEach { item ->
+            val page = item.page
+            val destination = item.destination
+            val selected = mainPagerState.selectedPage == page
             ShortNavigationBarItem(
                 selected = selected,
                 onClick = {
                     if (!selected) {
-                        mainPagerState.animateToPage(index)
+                        mainPagerState.animateToPage(page)
                     }
                 },
                 icon = {
                     NavigationIconWithBadge(
-                        icon = if (selected) selectedIcon else unselectedIcon,
-                        contentDescription = stringResource(label),
-                        badge = badgeFor(index, navigationBadge),
+                        icon = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = stringResource(destination.label),
+                        badge = badgeFor(page, navigationBadge),
                     )
                 },
                 label = {},

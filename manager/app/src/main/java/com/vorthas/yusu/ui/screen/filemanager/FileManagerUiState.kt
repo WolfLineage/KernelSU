@@ -1,5 +1,6 @@
 package com.vorthas.yusu.ui.screen.filemanager
 
+import com.vorthas.yusu.data.filemanager.Bookmark
 import com.vorthas.yusu.data.filemanager.FileEntry
 import com.vorthas.yusu.data.filemanager.FileManagerRepository
 
@@ -34,7 +35,7 @@ data class FileManagerUiState(
     val canBack: List<Boolean> = listOf(false, false),
     val canForward: List<Boolean> = listOf(false, false),
     val message: String? = null,
-    val bookmarkPaths: List<String> = emptyList(),
+    val bookmarks: List<Bookmark> = emptyList(),
     val bookmarksOpen: Boolean = false,
     /** Launched as a file picker: title shows "Select file" instead of nagging dialogs. */
     val pickMode: Boolean = false,
@@ -77,5 +78,8 @@ data class FileManagerActions(
     val onShowBookmarks: () -> Unit = {},
     val onHideBookmarks: () -> Unit = {},
     val onNavigateBookmark: (String) -> Unit = {},
+    val onUpdateBookmark: (String, String, String) -> Unit = { _, _, _ -> },
+    val onMoveBookmark: (Int, Int) -> Unit = { _, _ -> },
+    val onRemoveBookmark: (String) -> Unit = {},
     val onReveal: (Int, String) -> Unit = { _, _ -> },
 )

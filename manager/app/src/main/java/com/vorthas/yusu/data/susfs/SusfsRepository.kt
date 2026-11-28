@@ -18,7 +18,9 @@ private const val BOOT_HOOK = "/data/adb/ksu/susfs/hooks/boot-completed.d/zz_yus
 private const val POST_FS_LINK = "/data/adb/post-fs-data.d"
 private const val BOOT_LINK = "/data/adb/boot-completed.d"
 private const val SERVICE_LINK = "/data/adb/service.d"
-private const val ENGINE_MARKER = "native-9"
+private const val KMI_OVERRIDE_FILE = "$NATIVE_DIR/kmi_override"
+private const val CUSTOM_LKM_DIR = "$NATIVE_DIR/lkm/custom"
+private const val ENGINE_MARKER = "native-10"
 
 /** Status of the manager-owned SuSFS LKM integration. */
 data class SusfsStatus(
@@ -53,6 +55,18 @@ object SusfsRepository {
     private const val TAG = "SusfsRepo"
     private const val PREFS = "settings"
     private const val KEY_INTEGRATION = "susfs_integration_enabled"
+
+    /** Matches the upstream susfs4ksu-lkm build matrix; do not add entries without a bundled .ko. */
+    private val supportedKmis = listOf(
+        "android12-5.10",
+        "android13-5.10",
+        "android13-5.15",
+        "android14-5.15",
+        "android14-6.1",
+        "android15-6.6",
+        "android16-6.12",
+        "android17-6.18",
+    )
 
     private val configFiles = listOf(
         "config.txt",
@@ -133,20 +147,61 @@ object SusfsRepository {
         }
     }.onFailure { Log.e(TAG, "setIntegrationEnabled failed", it) }
 
-    /** Map an uname release to the KMI name used by susfs4ksu-lkm. */
+    /**
+     * Map a kernel release to the KMI name used by susfs4ksu-lkm. The Android tag
+     * is authoritative; a missing tag is only accepted when the kernel series maps
+     * to exactly one packaged KMI (5.10 and 5.15 are shared, so they stay ambiguous).
+     */
     fun kmiOf(release: String): String? {
-        val match = Regex("^(\\d+\\.\\d+)\\.\\d+-(android\\d+)-.*").find(release.trim()) ?: return null
-        val (majorMinor, android) = match.destructured
-        return "$android-$majorMinor"
+        val trimmed = release.trim()
+        Regex("""^(\d+\.\d+)\.\d+-(android\d+)(?:-.*)?$""").find(trimmed)?.let { match ->
+            val (majorMinor, android) = match.destructured
+            return "$android-$majorMinor"
+        }
+        val version = Regex("""^(\d+\.\d+)\.\d+(?:\.|-|$)""").find(trimmed)
+            ?.groupValues?.get(1) ?: return null
+        return supportedKmis.singleOrNull { it.substringAfter('-') == version }
     }
 
-    private fun lkmNameFor(kmi: String?): String? = when (kmi) {
-        "android12-5.10", "android13-5.10", "android13-5.15", "android14-5.15",
-        "android14-6.1", "android15-6.6", "android16-6.12", "android17-6.18",
-        -> "susfs_guard_lkm-$kmi.ko"
+    private fun normalizeKmi(value: String?): String? =
+        value?.trim()?.takeIf { it in supportedKmis }
 
-        else -> null
+    /** The real kernel release. SuSFS can spoof uname -r, but not /proc/sys/kernel/osrelease. */
+    private fun kernelRelease(): String =
+        output("cat /proc/sys/kernel/osrelease 2>/dev/null").lineSequence()
+            .map { it.trim() }.firstOrNull { it.isNotEmpty() }
+            ?: output("uname -r").lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
+            ?: System.getProperty("os.version").orEmpty()
+
+    /** Optional upstream-compatible override: one KMI name in $KMI_OVERRIDE_FILE. */
+    private fun kmiOverride(): String? =
+        output("cat ${KMI_OVERRIDE_FILE.shellQuote()} 2>/dev/null")
+            .lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
+            ?.let(::normalizeKmi)
+
+    private fun kmiFromKsud(): String? =
+        output("/data/adb/ksu/bin/ksud boot-info current-kmi 2>/dev/null")
+            .lineSequence().map { it.trim() }.firstNotNullOfOrNull(::normalizeKmi)
+
+    /** The KMI actually used: explicit override > kernel release > ksud boot info. */
+    private fun selectedKmi(): String? =
+        kmiOverride() ?: kmiOf(kernelRelease())?.let(::normalizeKmi) ?: kmiFromKsud()
+
+    private fun lkmNameFor(kmi: String?): String? =
+        normalizeKmi(kmi)?.let { "susfs_guard_lkm-$it.ko" }
+
+    /** User-provided modules win over the bundled copy; upstream module layout is also accepted. */
+    private fun lkmCandidates(kmi: String?): List<String> {
+        val name = lkmNameFor(kmi) ?: return emptyList()
+        return listOf(
+            "$CUSTOM_LKM_DIR/$name",
+            "$NATIVE_DIR/lkm/$name",
+            "/data/adb/modules/susfs_guard_lkm/lib/$name",
+        )
     }
+
+    private fun hasLkm(kmi: String?): Boolean =
+        lkmCandidates(kmi).any { exec("test -s ${it.shellQuote()}").isSuccess }
 
     private fun copyAsset(assetPath: String, destination: File) {
         destination.parentFile?.mkdirs()
@@ -209,29 +264,25 @@ object SusfsRepository {
             exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
             exec("test -L $CLI").isSuccess
 
-    /**
-     * Current KMI derived from the running kernel. This must match the KMI recorded
-     * in the .installed marker: a newly patched kernel can change the KMI, in which
-     * case the engine must be reinstalled with the matching guard LKM.
-     */
-    private fun currentKmi(): String? = kmiOf(
-        output("uname -r").ifBlank { System.getProperty("os.version").orEmpty() }
-    )
-
     private fun installedMarker(kmi: String): String = "${BuildConfig.VERSION_CODE}:$ENGINE_MARKER:$kmi"
 
+    /** Accept both symlink hooks and copied-in hooks; install() supports both layouts. */
+    private fun hookReady(link: String, hookFile: String? = null): Boolean {
+        val linkExists = exec("test -e $link").isSuccess || exec("test -L $link").isSuccess
+        return linkExists && (hookFile == null || exec("test -f $hookFile").isSuccess)
+    }
+
     private fun isCurrent(): Boolean {
-        val kmi = currentKmi() ?: return false
-        val lkmName = lkmNameFor(kmi) ?: return false
+        val kmi = selectedKmi() ?: return false
+        if (lkmNameFor(kmi) == null) return false
         return output("cat $NATIVE_DIR/.installed 2>/dev/null") == installedMarker(kmi) &&
             exec("test -x $NATIVE_DIR/core/susfs.sh").isSuccess &&
             exec("test -x $SUSFS_BIN").isSuccess &&
             exec("test -L $CLI").isSuccess &&
-            exec("test -L $POST_FS_LINK").isSuccess &&
-            exec("test -L $BOOT_LINK").isSuccess &&
-            exec("test -L $SERVICE_LINK").isSuccess &&
-            exec("test -f $POST_FS_HOOK").isSuccess &&
-            exec("test -f $NATIVE_DIR/lkm/$lkmName").isSuccess
+            hookReady(POST_FS_LINK, POST_FS_HOOK) &&
+            hookReady(BOOT_LINK, BOOT_HOOK) &&
+            hookReady(SERVICE_LINK) &&
+            hasLkm(kmi)
     }
 
     /** Install or refresh the native engine and boot hooks. Existing user config is preserved. */
@@ -239,14 +290,14 @@ object SusfsRepository {
         if (!isRoot()) error("Root access is required")
         if (isCurrent()) return@runCatching "Native SuSFS engine is up to date"
 
-        val release = output("uname -r").ifBlank { System.getProperty("os.version").orEmpty() }
-        val kmi = kmiOf(release) ?: error("Unsupported kernel KMI: $release")
+        val release = kernelRelease()
+        val kmi = selectedKmi() ?: error("Unsupported kernel KMI: $release")
         val lkmName = lkmNameFor(kmi) ?: error("No bundled LKM for $kmi")
         val stage = stageAssets(kmi)
         val src = stage.absolutePath
 
         val commands = mutableListOf<String>().apply {
-            add("mkdir -p $NATIVE_DIR/core $NATIVE_DIR/bin $NATIVE_DIR/lkm $PERSISTENT_DIR/scripts $HOOKS_DIR/post-fs-data.d $HOOKS_DIR/boot-completed.d $HOOKS_DIR/service.d")
+            add("mkdir -p $NATIVE_DIR/core $NATIVE_DIR/bin $CUSTOM_LKM_DIR $PERSISTENT_DIR/scripts $HOOKS_DIR/post-fs-data.d $HOOKS_DIR/boot-completed.d $HOOKS_DIR/service.d")
             // Migrate user config from the legacy /data/adb/ReSuSFS and /data/adb/yusu layout.
             add("if [ -d $LEGACY_CONFIG_DIR ]; then cp -Rf $LEGACY_CONFIG_DIR/. $PERSISTENT_DIR/; fi")
             add("cp -f $src/core/utils.sh $NATIVE_DIR/core/utils.sh")
@@ -256,10 +307,10 @@ object SusfsRepository {
             add("chmod 755 $SUSFS_BIN")
             add("cp -f $src/bin/susfs_insmod $NATIVE_DIR/bin/susfs_insmod")
             add("chmod 755 $NATIVE_DIR/bin/susfs_insmod")
-            // Remove stale LKMs from a previous KMI; a kernel patch may change it.
-            add("rm -f $NATIVE_DIR/lkm/*.ko")
-            add("cp -f $src/lkm/$lkmName $NATIVE_DIR/lkm/$lkmName")
-            add("chmod 644 $NATIVE_DIR/lkm/$lkmName")
+            // Never delete a user-supplied .ko: the loader matches by current KMI,
+            // and a manually downloaded module is often the only working one.
+            add("if [ ! -s $NATIVE_DIR/lkm/$lkmName ]; then cp -f $src/lkm/$lkmName $NATIVE_DIR/lkm/$lkmName; fi")
+            add("chmod 644 $NATIVE_DIR/lkm/$lkmName $CUSTOM_LKM_DIR/$lkmName 2>/dev/null || true")
             add("ln -sfn $NATIVE_DIR/core/susfs.sh $CLI")
             add("cp -f $src/hooks/post-fs-data.d/zz_yusu_susfs.sh $POST_FS_HOOK")
             add("cp -f $src/hooks/boot-completed.d/zz_yusu_susfs.sh $BOOT_HOOK")
@@ -274,7 +325,7 @@ object SusfsRepository {
             add("if [ -d $SERVICE_LINK ] && [ -z \"\$(ls -A $SERVICE_LINK)\" ]; then rmdir $SERVICE_LINK; fi")
             add("if [ ! -e $SERVICE_LINK ]; then ln -s $HOOKS_DIR/service.d $SERVICE_LINK; fi")
             // Restore pristine defaults once when upgrading from a release that mutated them.
-            add("if grep -q 'native-[1-8]' $NATIVE_DIR/.installed 2>/dev/null; then cp -f $src/configs/*.txt $PERSISTENT_DIR/; cp -f $src/configs/scripts/*.sh $PERSISTENT_DIR/scripts/; fi")
+            add("if grep -q 'native-[1-9]' $NATIVE_DIR/.installed 2>/dev/null; then cp -f $src/configs/*.txt $PERSISTENT_DIR/; cp -f $src/configs/scripts/*.sh $PERSISTENT_DIR/scripts/; fi")
             add("printf '%s' '${installedMarker(kmi)}' > $NATIVE_DIR/.installed")
         }
 
@@ -301,12 +352,11 @@ object SusfsRepository {
     }.onFailure { Log.e(TAG, "install failed", it) }
 
     fun status(): SusfsStatus {
-        val release = output("uname -r")
-        val kmi = kmiOf(release).orEmpty()
+        val release = kernelRelease()
+        val kmi = selectedKmi().orEmpty()
         val lkmName = lkmNameFor(kmi)
         val installed = exec("test -f $NATIVE_DIR/.installed").isSuccess
-        val integrated = exec("test -f $POST_FS_HOOK").isSuccess &&
-            exec("test -L $POST_FS_LINK").isSuccess
+        val integrated = hookReady(POST_FS_LINK, POST_FS_HOOK)
         val builtIn = exec("zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_KSU_SUSFS=y'").isSuccess
         val versionRaw = output("$SUSFS_BIN show version 2>/dev/null")
         val variantRaw = output("$SUSFS_BIN show variant 2>/dev/null")
@@ -333,7 +383,7 @@ object SusfsRepository {
             kernelRelease = release,
             kmi = kmi,
             lkmName = lkmName,
-            lkmPresent = lkmName?.let { exec("test -f $NATIVE_DIR/lkm/${it.shellQuote()}").isSuccess } ?: false,
+            lkmPresent = hasLkm(kmi),
             version = version,
             variant = variant,
             featureCount = featureCount,
@@ -389,9 +439,8 @@ object SusfsRepository {
         if (builtIn) return@runCatching null
         // A patched kernel may have a different KMI than when the engine was first
         // installed. If the matching guard LKM is missing, reinstall before loading.
-        val kmi = currentKmi()
-        val lkmName = kmi?.let { lkmNameFor(it) }
-        if (lkmName == null || !exec("test -f $NATIVE_DIR/lkm/$lkmName").isSuccess) {
+        val kmi = selectedKmi()
+        if (kmi == null || lkmNameFor(kmi) == null || !hasLkm(kmi)) {
             Log.i(TAG, "SuSFS LKM missing for current KMI ($kmi), reinstalling engine")
             install().getOrThrow()
         }
@@ -490,8 +539,8 @@ object SusfsRepository {
     }.onFailure { Log.e(TAG, "setScriptStage failed", it) }
 
     fun resetConfigs(): Result<Unit> = runCatching {
-        val release = output("uname -r")
-        val kmi = kmiOf(release) ?: error("Unsupported KMI: $release")
+        val release = kernelRelease()
+        val kmi = selectedKmi() ?: error("Unsupported KMI: $release")
         val stage = stageAssets(kmi)
         val failures = mutableListOf<String>()
         configFiles.forEach { name ->

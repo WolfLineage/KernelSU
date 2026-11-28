@@ -56,14 +56,29 @@ class FileManagerViewModel : ViewModel() {
     /** MT-style bookmarks: toggle, list and navigate. */
     fun toggleBookmark(path: String) {
         bookmarks.toggle(path)
-        _state.update { it.copy(bookmarkPaths = bookmarks.all()) }
+        _state.update { it.copy(bookmarks = bookmarks.all()) }
     }
 
-    fun isBookmarked(path: String): Boolean = path in bookmarks.all()
+    fun isBookmarked(path: String): Boolean = bookmarks.all().any { it.path == path }
 
-    fun showBookmarks() = _state.update { it.copy(bookmarkPaths = bookmarks.all(), bookmarksOpen = true) }
+    fun showBookmarks() = _state.update { it.copy(bookmarks = bookmarks.all(), bookmarksOpen = true) }
 
     fun hideBookmarks() = _state.update { it.copy(bookmarksOpen = false) }
+
+    fun updateBookmark(path: String, note: String, group: String) {
+        bookmarks.update(path, note, group)
+        _state.update { it.copy(bookmarks = bookmarks.all()) }
+    }
+
+    fun moveBookmark(from: Int, to: Int) {
+        bookmarks.move(from, to)
+        _state.update { it.copy(bookmarks = bookmarks.all()) }
+    }
+
+    fun removeBookmark(path: String) {
+        bookmarks.remove(path)
+        _state.update { it.copy(bookmarks = bookmarks.all()) }
+    }
 
     fun refresh(pane: Int) = viewModelScope.launch(Dispatchers.IO) {
         val path = _state.value.panes.getOrNull(pane)?.path ?: return@launch

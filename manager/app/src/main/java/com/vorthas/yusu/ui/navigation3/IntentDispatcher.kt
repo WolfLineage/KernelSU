@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +21,7 @@ import com.vorthas.yusu.R
 import com.vorthas.yusu.data.repository.SettingsRepositoryImpl
 import com.vorthas.yusu.data.script.ScriptRepository
 import com.vorthas.yusu.ksuApp
+import com.vorthas.yusu.ui.LocalPickResult
 import com.vorthas.yusu.ui.screen.flash.FlashIt
 import com.vorthas.yusu.ui.screen.scriptrun.ScriptRunArg
 import com.vorthas.yusu.ui.util.DownloadService
@@ -101,13 +103,32 @@ fun getDisplayName(uri: Uri): String {
     return uri.getFileName(ksuApp) ?: uri.lastPathSegment ?: "Unknown"
 }
 
+/** Prefer intent.data, then the first content/file Uri in ClipData (share intents). */
+private fun firstFileUri(intent: Intent): Uri? {
+    intent.data?.let { uri ->
+        if (uri.scheme == "content" || uri.scheme == "file") return uri
+    }
+    intent.clipData?.let { clip ->
+        for (index in 0 until clip.itemCount) {
+            val uri = clip.getItemAt(index).uri
+            if (uri.scheme == "content" || uri.scheme == "file") return uri
+        }
+    }
+    return null
+}
+
 /**
  * Resolve an intent snapshot into a [PendingAction].
  * Returns null if the intent carries no recognized action.
  */
 private fun resolveIntent(intent: Intent): PendingAction? {
-    // Upload picker launched by another app.
-    if (intent.action == Intent.ACTION_GET_CONTENT) return PendingAction.StartPick
+    // Upload picker launched by another app (classic, SAF, and legacy PICK).
+    if (intent.action == Intent.ACTION_GET_CONTENT ||
+        intent.action == Intent.ACTION_OPEN_DOCUMENT ||
+        intent.action == Intent.ACTION_PICK
+    ) {
+        return PendingAction.StartPick
+    }
 
     // DownloadService notification: install module
     if (intent.action == DownloadService.ACTION_INSTALL_MODULE) {
@@ -126,11 +147,13 @@ private fun resolveIntent(intent: Intent): PendingAction? {
     // Any file opened from another app ("Open with"): reveal it in the file
     // manager. APK, ZIP and generic files all land there; no more ZIP→module
     // install detour. The notification install-module path is handled above.
-    val viewUri = intent.data
-    if (viewUri != null && (viewUri.scheme == "content" || viewUri.scheme == "file") &&
-        (intent.action == Intent.ACTION_VIEW || intent.action == Intent.ACTION_INSTALL_PACKAGE)
+    if (intent.action == Intent.ACTION_VIEW ||
+        intent.action == Intent.ACTION_INSTALL_PACKAGE ||
+        intent.action == Intent.ACTION_SEND
     ) {
-        return PendingAction.RevealFile(uri = viewUri, displayName = getDisplayName(viewUri))
+        firstFileUri(intent)?.let { uri ->
+            return PendingAction.RevealFile(uri = uri, displayName = getDisplayName(uri))
+        }
     }
 
     // Check deep links
@@ -165,6 +188,8 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
     val isManager = Natives.isManager
     val scope = rememberCoroutineScope()
     val activityViewModel = com.vorthas.yusu.ui.LocalActivityViewModel.current
+    val settingsRepo = remember { SettingsRepositoryImpl() }
+    val pickResult = LocalPickResult.current
 
     // A one-shot script ZIP opens the run page, which also offers installing it as a module.
     val openModuleZip: (Uri) -> Unit = { uri ->
@@ -181,6 +206,15 @@ fun IntentDispatcher(intentChannel: ReceiveChannel<Intent>) {
     CollectIntentChannel(intentChannel) { intent ->
         if (!isManager) return@CollectIntentChannel
         val action = resolveIntent(intent) ?: return@CollectIntentChannel
+
+        // Defense in depth: the manifest alias is disabled by default, but an
+        // explicit intent can still reach MainActivity. Never expose a disabled feature.
+        if (action is PendingAction.StartPick || action is PendingAction.RevealFile) {
+            if (!settingsRepo.enableFileManager) {
+                if (action is PendingAction.StartPick) pickResult(null)
+                return@CollectIntentChannel
+            }
+        }
 
         when (action) {
             is PendingAction.InstallModule -> {

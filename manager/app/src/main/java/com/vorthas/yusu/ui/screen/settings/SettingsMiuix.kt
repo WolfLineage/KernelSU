@@ -190,6 +190,41 @@ fun SettingPagerMiuix(
                         )
                     }
 
+                    Card(
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .fillMaxWidth(),
+                    ) {
+                        SwitchPreference(
+                            title = stringResource(id = R.string.settings_file_manager),
+                            summary = stringResource(id = R.string.settings_file_manager_summary),
+                            startAction = {
+                                Icon(
+                                    Icons.Rounded.Folder,
+                                    modifier = Modifier.padding(end = 6.dp),
+                                    contentDescription = stringResource(id = R.string.settings_file_manager),
+                                    tint = colorScheme.onBackground
+                                )
+                            },
+                            checked = uiState.enableFileManager,
+                            onCheckedChange = actions.onSetEnableFileManager
+                        )
+                        SwitchPreference(
+                            title = stringResource(id = R.string.settings_terminal),
+                            summary = stringResource(id = R.string.settings_terminal_summary),
+                            startAction = {
+                                Icon(
+                                    Icons.Rounded.Terminal,
+                                    modifier = Modifier.padding(end = 6.dp),
+                                    contentDescription = stringResource(id = R.string.settings_terminal),
+                                    tint = colorScheme.onBackground
+                                )
+                            },
+                            checked = uiState.enableTerminal,
+                            onCheckedChange = actions.onSetEnableTerminal
+                        )
+                    }
+
                     KsuIsValid {
                         Card(
                             modifier = Modifier

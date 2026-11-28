@@ -45,6 +45,8 @@ import com.vorthas.yusu.ui.LocalMainPagerState
 @Composable
 fun NavigationRailMaterial(
     navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean,
+    enableTerminal: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val fullFeatured = Natives.isFullFeatured()
@@ -52,9 +54,7 @@ fun NavigationRailMaterial(
 
     val mainPagerState = LocalMainPagerState.current
 
-    val items = BottomBarDestination.entries.map {
-        Triple(it.label, it.selectedIcon, it.unselectedIcon)
-    }
+    val items = visibleDestinations(enableFileManager, enableTerminal)
 
     val settingsRepo = remember { SettingsRepositoryImpl() }
     val state = rememberWideNavigationRailState(
@@ -100,24 +100,26 @@ fun NavigationRailMaterial(
             }
         },
     ) {
-        items.forEachIndexed { index, (label, selectedIcon, unselectedIcon) ->
-            val selected = mainPagerState.selectedPage == index
+        items.forEach { item ->
+            val page = item.page
+            val destination = item.destination
+            val selected = mainPagerState.selectedPage == page
             WideNavigationRailItem(
                 railExpanded = expanded,
                 selected = selected,
                 onClick = {
                     if (!selected) {
-                        mainPagerState.animateToPage(index)
+                        mainPagerState.animateToPage(page)
                     }
                 },
                 icon = {
                     NavigationIconWithBadge(
-                        icon = if (selected) selectedIcon else unselectedIcon,
-                        contentDescription = stringResource(label),
-                        badge = badgeFor(index, navigationBadge),
+                        icon = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = stringResource(destination.label),
+                        badge = badgeFor(page, navigationBadge),
                     )
                 },
-                label = { Text(stringResource(label)) }
+                label = { Text(stringResource(destination.label)) }
             )
         }
     }

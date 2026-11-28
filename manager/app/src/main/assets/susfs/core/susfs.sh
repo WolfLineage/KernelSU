@@ -9,7 +9,7 @@ POSTFS_SCRIPTS_FILE="$PERSISTENT_DIR/scripts_postfs.txt"
 BOOTCOMPLETED_SCRIPTS_FILE="$PERSISTENT_DIR/scripts_bootcompleted.txt"
 SUSFS_BIN=/data/adb/ksu/bin/ksu_susfs
 SUSFS_MIN_VERSION="v2.2.0"
-ENGINE_VERSION="native-2"
+ENGINE_VERSION="native-10"
 
 . "$NATIVE_DIR/core/utils.sh"
 

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,7 @@ internal fun FileManagerScreenMiuix(
     var input by rememberSaveable { mutableStateOf("") }
     var newFileMode by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -77,6 +79,11 @@ internal fun FileManagerScreenMiuix(
             TopAppBar(
                 color = MiuixTheme.colorScheme.surface,
                 title = stringResource(if (state.pickMode) R.string.pick_file_title else R.string.file_manager),
+                navigationIcon = {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.Menu, contentDescription = "菜单", tint = MiuixTheme.colorScheme.onBackground)
+                    }
+                },
                 actions = {
                     IconButton(onClick = actions.onShowBookmarks) {
                         Icon(Icons.Filled.Bookmark, contentDescription = "书签", tint = MiuixTheme.colorScheme.onBackground)
@@ -112,38 +119,18 @@ internal fun FileManagerScreenMiuix(
         }
     }
 
-    if (state.bookmarksOpen) {
-        AlertDialog(
-            onDismissRequest = {},
-            containerColor = dialogSurface(),
-            titleContentColor = dialogText(),
-            textContentColor = dialogText(),
-            title = { Text("书签") },
-            text = {
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    if (state.bookmarkPaths.isEmpty()) {
-                        Text("暂无书签。长按目录或文件可添加。", color = dialogText())
-                    } else {
-                        state.bookmarkPaths.forEach { path ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    actions.onNavigateBookmark(path)
-                                    actions.onHideBookmarks()
-                                }.padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Filled.Bookmark, null,
-                                    tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Text(path, color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
+    if (menuOpen) {
+        FileManagerMenuDialog(
+            onDismiss = { menuOpen = false },
+            onNavigate = { path ->
+                actions.onNavigate(state.activePane, path)
+                menuOpen = false
             },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = actions.onHideBookmarks) { Text("关闭") } },
         )
+    }
+
+    if (state.bookmarksOpen) {
+        BookmarksDialog(state, actions)
     }
 
     if (searchOpen) {

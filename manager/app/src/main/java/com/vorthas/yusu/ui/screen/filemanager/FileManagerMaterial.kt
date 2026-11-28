@@ -1,5 +1,10 @@
 package com.vorthas.yusu.ui.screen.filemanager
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -8,8 +13,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -50,6 +53,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -64,6 +68,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
@@ -90,6 +95,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -105,15 +111,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -126,8 +133,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -141,10 +148,17 @@ import com.vorthas.yusu.R
 import com.vorthas.yusu.data.filemanager.FileEntry
 import com.vorthas.yusu.data.filemanager.FileKind
 import com.vorthas.yusu.data.filemanager.FileManagerRepository
+import com.vorthas.yusu.data.filemanager.Bookmark
+import com.vorthas.yusu.data.filemanager.ExecutionPreferenceRepository
 import com.vorthas.yusu.ui.LocalUiMode
 import com.vorthas.yusu.ui.UiMode
 import com.vorthas.yusu.ui.screen.terminal.INTERACTIVE_SU_PREFIX
+import com.vorthas.yusu.ui.screen.terminal.PIPE_EXEC_PREFIX
+import com.vorthas.yusu.ui.screen.terminal.PIPE_EXEC_ROOT_PREFIX
+import com.vorthas.yusu.ui.screen.terminal.PIPE_EXEC_BIN_PREFIX
+import com.vorthas.yusu.ui.screen.terminal.PIPE_EXEC_BIN_ROOT_PREFIX
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -183,7 +197,7 @@ private fun mtTileColor(entry: FileEntry): Color {
     return when {
         name.endsWith(".apk") || name.endsWith(".apks") -> Color(0xFF3AA83A)
         name.endsWith(".sh") || name.endsWith(".bash") || name.endsWith(".py") ||
-            name.endsWith(".js") || name.endsWith(".lua") || isScriptEntry(entry) -> Color(0xFF3F72D6)
+            name.endsWith(".js") || name.endsWith(".lua") -> Color(0xFF3F72D6)
         name.endsWith(".json") || name.endsWith(".xml") -> Color(0xFF1976D2)
         name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
             name.endsWith(".gif") || name.endsWith(".webp") -> Color(0xFF26A69A)
@@ -228,8 +242,10 @@ private fun scriptCommand(path: String, root: Boolean, elf: Boolean, interactive
     val invocation = if (elf) "\"$escaped\"" else "sh \"$escaped\""
     val base = "cd \"$(dirname \"$escaped\")\"; chmod 755 \"$escaped\"; $invocation"
     return when {
-        interactive && root -> INTERACTIVE_SU_PREFIX + base
-        interactive -> base                  // stay as the app user (can read its own files)
+        // Execution sessions must end with the script so the terminal can show
+        // the MT-style Enter-to-close hint (and return to File Manager on Enter).
+        interactive && root -> INTERACTIVE_SU_PREFIX + "$base; exit"
+        interactive -> "$base; exit"         // stay as the app user (can read its own files)
         root -> "su -c '$base'"
         else -> base
     }
@@ -249,6 +265,390 @@ internal fun dialogSurface(): Color = when (LocalUiMode.current) {
 internal fun dialogText(): Color = when (LocalUiMode.current) {
     UiMode.Miuix -> MiuixTheme.colorScheme.onBackground
     UiMode.Material -> MaterialTheme.colorScheme.onSurface
+}
+
+/**
+ * MT-style top-left menu: a compact "本地" section with the two paths users jump to
+ * most often. The "工具" section is intentionally omitted for now.
+ */
+@Composable
+internal fun FileManagerMenuDialog(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogSurface(),
+        titleContentColor = dialogText(),
+        textContentColor = dialogText(),
+        title = { Text("文件管理") },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    "本地",
+                    color = toolPrimaryColor(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+                MenuPathRow(
+                    icon = Icons.Filled.FolderOpen,
+                    label = "根目录",
+                    path = "/",
+                    onClick = { onNavigate("/") },
+                )
+                MenuPathRow(
+                    icon = Icons.Filled.Home,
+                    label = "内部存储",
+                    path = "/storage/emulated/0",
+                    onClick = { onNavigate("/storage/emulated/0") },
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+    )
+}
+
+@Composable
+private fun MenuPathRow(icon: ImageVector, label: String, path: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = toolPrimaryColor(), modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(label, color = dialogText(), fontSize = 15.sp)
+            Text(path, color = toolMutedColor(), fontSize = 11.sp)
+        }
+    }
+}
+
+/**
+ * MT-style bookmark dialog: the path is the primary content, with a note and a group
+ * header, plus explicit reorder/edit/delete controls. Groups are free text so a new
+ * group is created simply by typing its name in the edit dialog.
+ */
+@Composable
+internal fun BookmarksDialog(state: FileManagerUiState, actions: FileManagerActions) {
+    var editingPath by remember { mutableStateOf<String?>(null) }
+    var editNote by remember { mutableStateOf("") }
+    var editGroup by remember { mutableStateOf("") }
+    var batchMode by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var dragPath by remember { mutableStateOf<String?>(null) }
+    val currentBookmarks = rememberUpdatedState(state.bookmarks)
+    val currentDragPath = rememberUpdatedState(dragPath)
+    val currentBatchMode = rememberUpdatedState(batchMode)
+    val density = LocalDensity.current
+    val rowHeightPx = with(density) { 76.dp.toPx() }
+    var headerHeightPx by remember { mutableFloatStateOf(0f) }
+    var topRowHeightPx by remember { mutableFloatStateOf(0f) }
+    val editing = state.bookmarks.firstOrNull { it.path == editingPath }
+    val context = LocalContext.current
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+    AlertDialog(
+        onDismissRequest = {},
+        containerColor = dialogSurface(),
+        titleContentColor = dialogText(),
+        textContentColor = dialogText(),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("书签", modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    batchMode = !batchMode
+                    if (!batchMode) { selected = emptySet(); dragPath = null }
+                }) { Text(if (batchMode) "完成" else "批量操作") }
+            }
+        },
+        text = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        // This parent never moves when rows are reordered, so its
+                        // pointer deltas remain the finger's real movement. A dragged
+                        // row's own coordinates shift with animateItem() layer offsets
+                        // and must not be used for hit testing.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(
+                                pass = PointerEventPass.Initial,
+                                requireUnconsumed = false,
+                            )
+                            var started = false
+                            var accumulated = 0f
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.changedToUpIgnoreConsumed()) break
+                                val path = currentDragPath.value ?: continue
+                                if (!started) {
+                                    started = true
+                                    accumulated = 0f
+                                }
+                                accumulated += change.positionChange().y
+                                change.consume()
+                                val fingerY = down.position.y + accumulated
+                                val items = currentBookmarks.value
+                                // Deterministic slot centers: fixed row height plus
+                                // measured header/top-row heights, unaffected by the
+                                // in-flight swap animation.
+                                val centers = ArrayList<Float>(items.size)
+                                var cursor = if (currentBatchMode.value) topRowHeightPx else 0f
+                                var lastGroup: String? = null
+                                val header = if (headerHeightPx > 0f) headerHeightPx
+                                    else with(density) { 30.dp.toPx() }
+                                items.forEach { item ->
+                                    val group = item.group.ifBlank { "本地" }
+                                    if (group != lastGroup) {
+                                        cursor += header
+                                        lastGroup = group
+                                    }
+                                    centers += cursor + rowHeightPx / 2f
+                                    cursor += rowHeightPx
+                                }
+                                val target = centers.indices.minByOrNull { abs(centers[it] - fingerY) }
+                                    ?: continue
+                                val from = items.indexOfFirst { it.path == path }
+                                if (from >= 0 && target != from) actions.onMoveBookmark(from, target)
+                            }
+                        }
+                    }
+            ) {
+                LazyColumn(Modifier.fillMaxWidth()) {
+                if (batchMode) {
+                    item(key = "batch-actions") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.onGloballyPositioned {
+                                topRowHeightPx = it.size.height.toFloat()
+                            },
+                        ) {
+                            Text("已选 ${selected.size}", color = toolMutedColor(),
+                                fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                selected.forEach { actions.onRemoveBookmark(it) }
+                                selected = emptySet()
+                            }) { Text("删除") }
+                            TextButton(onClick = {
+                                val paths = state.bookmarks.filter { it.path in selected }.map { it.path }
+                                clipboard.setPrimaryClip(ClipData.newPlainText("yusu-bookmarks", paths.joinToString("\n")))
+                            }) { Text("复制路径") }
+                        }
+                    }
+                }
+                if (state.bookmarks.isEmpty()) {
+                    item(key = "empty") {
+                        Text("暂无书签。长按目录或文件可添加。", color = dialogText())
+                    }
+                } else {
+                    state.bookmarks.map { it.group.ifBlank { "本地" } }.distinct().forEach { group ->
+                        item(key = "header:$group") {
+                            Text(
+                                group,
+                                color = toolPrimaryColor(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                                    .onGloballyPositioned { headerHeightPx = it.size.height.toFloat() }
+                                    .animateItem(),
+                            )
+                        }
+                        val groupItems = state.bookmarks.filter { (it.group.ifBlank { "本地" }) == group }
+                        items(groupItems, key = { it.path }) { bookmark ->
+                            val isSelected = bookmark.path in selected
+                            BookmarkRow(
+                                bookmark = bookmark,
+                                itemModifier = Modifier.animateItem(),
+                                batchMode = batchMode,
+                                selected = isSelected,
+                                dragging = dragPath == bookmark.path,
+                                onNavigate = {
+                                    actions.onNavigateBookmark(bookmark.path)
+                                    actions.onHideBookmarks()
+                                },
+                                onToggleSelect = {
+                                    selected = if (isSelected) selected - bookmark.path
+                                        else selected + bookmark.path
+                                },
+                                onEnterBatch = {
+                                    batchMode = true
+                                    selected = setOf(bookmark.path)
+                                },
+                                onDragStart = { dragPath = bookmark.path },
+                                onDragEnd = { dragPath = null },
+                                onEdit = {
+                                    editingPath = bookmark.path
+                                    editNote = bookmark.note
+                                    editGroup = bookmark.group.ifBlank { "本地" }
+                                },
+                                onDelete = { actions.onRemoveBookmark(bookmark.path) },
+                            )
+                        }
+                    }
+                }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = actions.onHideBookmarks) { Text("关闭") } },
+    )
+
+    if (editing != null) {
+        AlertDialog(
+            onDismissRequest = { editingPath = null },
+            containerColor = dialogSurface(),
+            titleContentColor = dialogText(),
+            textContentColor = dialogText(),
+            title = { Text("编辑书签") },
+            text = {
+                Column {
+                    Text(editing.path, color = toolMutedColor(), fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = editNote,
+                        onValueChange = { editNote = it },
+                        label = { Text("备注") },
+                        singleLine = true,
+                        colors = dialogFieldColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = editGroup,
+                        onValueChange = { editGroup = it },
+                        label = { Text("分组") },
+                        singleLine = true,
+                        colors = dialogFieldColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    actions.onUpdateBookmark(editing.path, editNote, editGroup)
+                    editingPath = null
+                }) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { editingPath = null }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun BookmarkRow(
+    bookmark: Bookmark,
+    itemModifier: Modifier = Modifier,
+    batchMode: Boolean,
+    selected: Boolean,
+    dragging: Boolean,
+    onNavigate: () -> Unit,
+    onToggleSelect: () -> Unit,
+    onEnterBatch: () -> Unit,
+    onDragStart: () -> Unit,
+    onDragEnd: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Batch selection highlights the whole row, matching the file manager's selection.
+    val background = when {
+        dragging -> toolPrimaryColor().copy(alpha = 0.32f)
+        batchMode && selected -> toolPrimaryColor().copy(alpha = 0.24f)
+        else -> Color.Transparent
+    }
+    Row(
+        itemModifier
+            .zIndex(if (dragging) 1f else 0f)
+            .fillMaxWidth()
+            .height(76.dp)
+            .background(background)
+            .combinedClickable(
+                onClick = if (batchMode) onToggleSelect else onNavigate,
+                // Batch-mode long press is reserved for the drag handle. Toggling
+                // selection here made extra rows light up when dragging began.
+                onLongClick = if (batchMode) null else onEnterBatch,
+            )
+            .padding(horizontal = 2.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Bookmark, null, tint = toolPrimaryColor(), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    bookmark.note.ifBlank { bookmark.path.substringAfterLast('/') },
+                    color = dialogText(),
+                    fontSize = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    bookmark.path,
+                    color = toolMutedColor(),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (batchMode) {
+            SmallActionIcon(Icons.Filled.Edit, "备注/分组") { onEdit() }
+            SmallActionIcon(Icons.Filled.Delete, "删除") { onDelete() }
+            // MT-style drag handle is the rightmost control. The dragged row is lifted
+            // out and the remaining rows slide aside to make room at the drop target.
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .pointerInput(bookmark.path) {
+                        // Only detects the long press. The enclosing dialog tracks the
+                        // movement in its own (stationary) coordinate space.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var fired = false
+                            val hold = scope.launch {
+                                delay(400L)
+                                fired = true
+                                onDragStart()
+                            }
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.changedToUpIgnoreConsumed()) break
+                                if (!fired) {
+                                    // Movement before the long press completes is a scroll.
+                                    val moved = change.position - down.position
+                                    if (kotlin.math.hypot(moved.x, moved.y) > 10f) break
+                                }
+                            }
+                            hold.cancel()
+                            if (fired) onDragEnd()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Menu, "长按拖动排序", tint = toolPrimaryColor(),
+                    modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmallActionIcon(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(30.dp)) {
+        Icon(icon, label, tint = if (enabled) toolPrimaryColor() else toolMutedColor(),
+            modifier = Modifier.size(16.dp))
+    }
 }
 
 /**
@@ -305,18 +705,21 @@ internal fun FileManagerScreenMaterial(
     var input by rememberSaveable { mutableStateOf("") }
     var newFileMode by rememberSaveable { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            LargeFlexibleTopAppBar(
+            TopAppBar(
                 title = { Text(stringResource(if (state.pickMode) R.string.pick_file_title else R.string.file_manager)) },
+                // MT-style hamburger: opens the quick navigation menu from the top-left.
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.Menu, contentDescription = "菜单")
                     }
                 },
                 // Back/forward/swap live in the bottom action bar (MT style); the top bar
-                // only keeps bookmarks and search.
+                // only keeps bookmarks and search. Removing the redundant back arrow also
+                // avoids a dead-looking icon on the pager page.
                 actions = {
                     IconButton(onClick = actions.onShowBookmarks) {
                         Icon(Icons.Filled.Bookmark, contentDescription = "书签")
@@ -362,45 +765,18 @@ internal fun FileManagerScreenMaterial(
         }
     }
 
-    if (state.bookmarksOpen) {
-        AlertDialog(
-            // Ignore the first dismiss request: the tap that opened this dialog can
-            // "tap through" to its scrim in the same frame and close it instantly.
-            onDismissRequest = {},
-            containerColor = dialogSurface(),
-            titleContentColor = dialogText(),
-            textContentColor = dialogText(),
-            title = { Text("书签") },
-            text = {
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    if (state.bookmarkPaths.isEmpty()) {
-                        Text("暂无书签。长按目录或文件可添加。", color = dialogText())
-                    } else {
-                        state.bookmarkPaths.forEach { path ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    actions.onNavigateBookmark(path)
-                                    actions.onHideBookmarks()
-                                }.padding(vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Filled.Bookmark, null, tint = toolPrimaryColor(),
-                                    modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(10.dp))
-                                Text(path, color = dialogText(), fontSize = 13.sp,
-                                    modifier = Modifier.weight(1f))
-                                IconButton(onClick = { actions.onToggleBookmark(path) }) {
-                                    Icon(Icons.Filled.Delete, null, tint = toolMutedColor(),
-                                        modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
+    if (menuOpen) {
+        FileManagerMenuDialog(
+            onDismiss = { menuOpen = false },
+            onNavigate = { path ->
+                actions.onNavigate(state.activePane, path)
+                menuOpen = false
             },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = actions.onHideBookmarks) { Text("关闭") } },
         )
+    }
+
+    if (state.bookmarksOpen) {
+        BookmarksDialog(state, actions)
     }
 
     if (searchOpen) {
@@ -410,9 +786,11 @@ internal fun FileManagerScreenMaterial(
             onNavigate = { path -> actions.onNavigate(state.activePane, path) },
             onOpenFile = { path ->
                 val lower = path.lowercase()
-                if (lower.endsWith(".apk") || lower.endsWith(".apks")) {
-                    // Don't install straight from the result row: jump to the APK's
-                    // parent folder so the user opens it through the full install dialog.
+                if (lower.endsWith(".apk") || lower.endsWith(".apks") ||
+                    isElfFile(path) || listOf(".sh", ".bash", ".zsh", ".ksh", ".fish").any { lower.endsWith(it) }
+                ) {
+                    // Jump to the parent so the file is opened through its full
+                    // install/execute dialog instead of a viewer.
                     actions.onNavigate(state.activePane, FileManagerRepository.parent(path))
                 } else {
                     actions.onOpenEditor(path)
@@ -497,7 +875,11 @@ internal fun PaneMaterial(
 ) {
     val pane = state.panes.getOrNull(index) ?: return
     var scriptTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
-    var scriptRoot by remember { mutableStateOf(true) }
+    val executionContext = LocalContext.current
+    val executionPrefs = remember(executionContext) { ExecutionPreferenceRepository(executionContext) }
+    var scriptRoot by remember { mutableStateOf(executionPrefs.load().root) }
+    var scriptPipe by remember { mutableStateOf(executionPrefs.load().pipe) }
+    var scriptSettings by remember { mutableStateOf(false) }
     var contextPath by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var infoTarget by remember { mutableStateOf<String?>(null) }
@@ -664,14 +1046,9 @@ internal fun PaneMaterial(
         }
         // While refreshing, dim the listing and fade it back in when the new
         // entries arrive — a visible MT-style transition instead of an instant swap.
-        val listAlpha by animateFloatAsState(
-            targetValue = if (pane.loading) 0.35f else 1f,
-            animationSpec = tween(220),
-            label = "pane_list_alpha",
-        )
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = listAlpha },
+            modifier = Modifier.fillMaxSize(),
         ) {
             if (pane.path != "/") {
                 item(key = "__parent__") {
@@ -769,7 +1146,7 @@ internal fun PaneMaterial(
                             MtCtx(Icons.Filled.MoreVert, "打开方式...", enabled = true) {
                                 actions.onOpenEditor(path); contextPath = null
                             },
-                            MtCtx(Icons.Filled.Bookmark, if (path in state.bookmarkPaths) "取消书签" else "添加书签", enabled = true) {
+                            MtCtx(Icons.Filled.Bookmark, if (state.bookmarks.any { it.path == path }) "取消书签" else "添加书签", enabled = true) {
                                 actions.onToggleBookmark(path); contextPath = null
                             },
                             MtCtx(Icons.Filled.Home, "设为首页", enabled = true) {
@@ -900,9 +1277,16 @@ internal fun PaneMaterial(
         }
 
         infoTarget?.let { target ->
+            val context = LocalContext.current
+            val copyToClipboard: (String) -> Unit = { text ->
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("yusu-file-info", text))
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+            }
             val entry = pane.entries.firstOrNull { it.path == target }
             val kindText = when (FileManagerRepository.sniff(target)) {
                 FileKind.IMAGE -> "图片"
+                FileKind.VIDEO -> "视频"
                 FileKind.ARCHIVE -> "压缩包"
                 FileKind.ELF -> "可执行文件"
                 FileKind.DEX -> "DEX"
@@ -919,8 +1303,8 @@ internal fun PaneMaterial(
                 title = { Text("属性") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        InfoRow("名称", target.substringAfterLast('/'))
-                        InfoRow("路径", target)
+                        InfoRow("名称", target.substringAfterLast('/')) { copyToClipboard(target.substringAfterLast('/')) }
+                        InfoRow("路径", target) { copyToClipboard(target) }
                         InfoRow("类型", kindText)
                         InfoRow("大小", FileManagerRepository.formatSize(FileManagerRepository.fileSize(target)))
                         InfoRow("修改时间", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
@@ -1029,36 +1413,98 @@ internal fun PaneMaterial(
         }
 
         scriptTarget?.let { (path, elf) ->
+            // MT Manager style: the main dialog only offers 设置 / 编辑 / 执行;
+            // the environment choice lives in the 设置 sub-dialog.
             AlertDialog(
                 onDismissRequest = { scriptTarget = null },
                 containerColor = dialogSurface(),
                 titleContentColor = dialogText(),
                 textContentColor = dialogText(),
-                title = { Text(stringResource(R.string.fm_run_script)) },
+                title = { Text(path.substringAfterLast('/')) },
                 text = {
                     Column {
-                        Text(
-                            (if (elf) "ELF 可执行文件: " else "脚本: ") + path + "\n将自动授予 0755 权限。",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = scriptRoot, onCheckedChange = { scriptRoot = it })
-                            Text("Root 执行", style = MaterialTheme.typography.bodySmall)
+                        Text("请选择要执行的操作")
+                        if (scriptRoot) {
+                            Text(
+                                "您已勾选使用 ROOT 权限执行，请确保脚本中不含有危险代码！",
+                                color = Color.Red,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        onRunScript(scriptCommand(path, root = scriptRoot, elf = elf, interactive = true))
-                        scriptTarget = null
-                    }) { Text("执行") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { scriptTarget = null }) {
-                        Text(stringResource(android.R.string.cancel))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { scriptSettings = true }) { Text("设置") }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = {
+                            actions.onOpenEditor(path)
+                            scriptTarget = null
+                        }) { Text("编辑") }
+                        TextButton(onClick = {
+                            val command = if (scriptPipe) {
+                                val prefix = when {
+                                    elf && scriptRoot -> PIPE_EXEC_BIN_ROOT_PREFIX
+                                    elf -> PIPE_EXEC_BIN_PREFIX
+                                    scriptRoot -> PIPE_EXEC_ROOT_PREFIX
+                                    else -> PIPE_EXEC_PREFIX
+                                }
+                                prefix + path
+                            } else {
+                                scriptCommand(path, root = scriptRoot, elf = elf, interactive = true)
+                            }
+                            onRunScript(command)
+                            scriptTarget = null
+                            scriptSettings = false
+                        }) { Text("执行") }
                     }
                 },
+                dismissButton = null,
             )
+            if (scriptSettings) {
+                AlertDialog(
+                    onDismissRequest = {
+                        val saved = executionPrefs.load()
+                        scriptRoot = saved.root
+                        scriptPipe = saved.pipe
+                        scriptSettings = false
+                    },
+                    containerColor = dialogSurface(),
+                    titleContentColor = dialogText(),
+                    textContentColor = dialogText(),
+                    title = { Text("执行设置") },
+                    text = {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = !scriptPipe, onClick = { scriptPipe = false })
+                                Text("终端执行（PTY）")
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = scriptPipe, onClick = { scriptPipe = true })
+                                Text("管道执行（PIPESO）")
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = scriptRoot, onCheckedChange = { scriptRoot = it })
+                                Text("使用 ROOT 权限执行")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            executionPrefs.save(com.vorthas.yusu.data.filemanager.ExecutionPreference(scriptRoot, scriptPipe))
+                            scriptSettings = false
+                        }) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            val saved = executionPrefs.load()
+                            scriptRoot = saved.root
+                            scriptPipe = saved.pipe
+                            scriptSettings = false
+                        }) { Text("取消") }
+                    },
+                )
+            }
         }
     }
 }
@@ -1111,7 +1557,7 @@ private fun FileRowMaterial(
     val openEntry = {
         actions.onActivePane(paneIndex)
         if (entry.isDirectory) actions.onNavigate(paneIndex, entry.path)
-        else if (isShellScriptEntry(entry) && !entry.path.contains('\u0000')) onScript(entry.path)
+        else if ((isShellScriptEntry(entry) || isElfFile(entry.path)) && !entry.path.contains('\u0000')) onScript(entry.path)
         else actions.onOpenEditor(entry.path)
     }
     Box(
@@ -1122,16 +1568,8 @@ private fun FileRowMaterial(
                 else Color.Transparent
             )
             .pointerInput(Unit) {
-                // Directional-lock swipe (MT style). Compose's built-in
-                // detectHorizontalDragGestures crosses touch slop on |ΣX| alone,
-                // ignoring the vertical axis entirely. Real-finger vertical
-                // scrolls with slight lateral drift then lock as horizontal
-                // mid-scroll: they steal scroll events (the reported "jerk"),
-                // accumulate dragX (phantom highlight) and can even fire
-                // selectRange with a stale anchor (multi-row phantom selection).
-                // Decide direction by axis dominance instead: horizontal wins
-                // ONLY when |ΣX| strictly exceeds |ΣY| at slop time; otherwise
-                // yield and the LazyColumn scrolls untouched.
+                // Directional-lock swipe (MT style): horizontal wins only when |ΣX|
+                // exceeds |ΣY| at slop time, so vertical scrolls are never stolen.
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val slop = viewConfiguration.touchSlop
@@ -1145,8 +1583,6 @@ private fun FileRowMaterial(
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         if (change.changedToUpIgnoreConsumed()) break
                         if (change.isConsumed) {
-                            // A parent (e.g. LazyColumn scroll) claimed the
-                            // gesture while we were undecided — stand down.
                             if (!decided) break
                             continue
                         }
@@ -1164,7 +1600,7 @@ private fun FileRowMaterial(
                             }
                         } else if (horizontal) {
                             dragX += delta.x
-                            change.consume() // keep the parent pager from switching pages
+                            change.consume()
                         }
                     }
                     if (horizontal && abs(dragX) > 48f) onSwipe(rowIndex)
@@ -1184,16 +1620,11 @@ private fun FileRowMaterial(
                     },
                     onLongClick = {
                         actions.onActivePane(paneIndex)
-                        // Do NOT highlight the long-pressed row — just show the context menu.
-                        // Menu actions that need a selection will temporarily select the target
-                        // right before executing (see context menu items below).
                         onContext(entry.path)
                     },
                 )
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            // MT-style uniform grey type tile with a white glyph; only the tile tint
-            // signals the category (MT's folder tile is grey, not blue).
             Box(
                 Modifier
                     .size(34.dp)
@@ -1207,21 +1638,21 @@ private fun FileRowMaterial(
                     modifier = Modifier.size(20.dp),
                 )
             }
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = toolTextColor())
-            Text(
-                buildString {
-                    append(entry.mode)
-                    if (entry.isLink) append(" -> ${entry.linkTarget}")
-                    append("  ")
-                    append(if (entry.isDirectory) "<DIR>" else FileManagerRepository.formatSize(entry.size))
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = if (entry.isLink) Color(0xFF64B5F6) else toolMutedColor(),
-            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = toolTextColor())
+                Text(
+                    buildString {
+                        append(entry.mode)
+                        if (entry.isLink) append(" -> ${entry.linkTarget}")
+                        append("  ")
+                        append(if (entry.isDirectory) "<DIR>" else FileManagerRepository.formatSize(entry.size))
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (entry.isLink) Color(0xFF64B5F6) else toolMutedColor(),
+                )
+            }
         }
-    }
     }
 }
 
@@ -1347,10 +1778,21 @@ internal fun SearchDialog(
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth()) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun InfoRow(label: String, value: String, onCopy: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = toolMutedColor(), fontSize = 13.sp, modifier = Modifier.width(56.dp))
-        Text(value, color = dialogText(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            color = dialogText(),
+            fontSize = 13.sp,
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (onCopy != null) Modifier.combinedClickable(onLongClick = onCopy, onClick = {})
+                    else Modifier
+                ),
+        )
     }
 }
 

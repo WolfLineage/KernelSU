@@ -1,5 +1,9 @@
 package com.vorthas.yusu.ui.screen.texteditor
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vorthas.yusu.data.filemanager.FileKind
@@ -14,7 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** MT-style viewer modes. CONTINUOUS streams text or hex with no pagination controls. */
-enum class FileViewMode { EDIT, CONTINUOUS, ARCHIVE, IMAGE, SQLITE, PDF }
+enum class FileViewMode { EDIT, CONTINUOUS, ARCHIVE, IMAGE, VIDEO, SQLITE, PDF }
 
 data class TextEditorUiState(
     val path: String = "",
@@ -24,6 +28,10 @@ data class TextEditorUiState(
     val original: String = "",
     /** Accumulated display lines for continuous text/hex browsing. */
     val lines: List<String> = emptyList(),
+    /** Logical line number for each displayed row; continuation rows reuse their parent. */
+    val lineNumbers: List<Int> = emptyList(),
+    /** Fully styled rows built on IO so the main thread only measures them. */
+    val lineTexts: List<AnnotatedString> = emptyList(),
     val isHex: Boolean = false,
     val loadedBytes: Long = 0L,
     val hasMore: Boolean = false,
@@ -36,6 +44,7 @@ data class TextEditorUiState(
     val sqliteTables: List<FileViewerRepository.SqliteTable> = emptyList(),
     val previewFile: java.io.File? = null,
     val pdfFile: java.io.File? = null,
+    val videoFile: java.io.File? = null,
     val previewTitle: String = "",
     val displayName: String = "",
     val inArchive: Boolean = false,
@@ -83,6 +92,9 @@ class TextEditorViewModel : ViewModel() {
     /** Trailing incomplete line from the previous chunk; stitched into the next read. */
     private var pendingLine = ""
     private var loadingMore = false
+    // Only an explicit "hex" open-as request uses hex; every other large file is text.
+    private var forceHex = false
+    private var logicalLine = 1
     private var archiveEntriesPath: String? = null
     private var allArchiveItems: List<FileViewerRepository.ArchiveItem> = emptyList()
 
@@ -109,6 +121,7 @@ class TextEditorViewModel : ViewModel() {
         val mode = when {
             kind == FileKind.ARCHIVE -> FileViewMode.ARCHIVE
             kind == FileKind.IMAGE -> FileViewMode.IMAGE
+            kind == FileKind.VIDEO -> FileViewMode.VIDEO
             kind == FileKind.SQLITE -> FileViewMode.SQLITE
             kind == FileKind.PDF -> FileViewMode.PDF
             kind == FileKind.TEXT && size <= MAX_EDIT_BYTES -> FileViewMode.EDIT
@@ -116,13 +129,18 @@ class TextEditorViewModel : ViewModel() {
         }
         pendingLine = ""
         loadingMore = false
+        forceHex = false
+        logicalLine = 1
         _state.update {
             it.copy(
                 path = path, kind = kind, mode = mode, fileSize = size, loading = true, message = null,
-                lines = emptyList(), loadedBytes = 0L, hasMore = false,
+                lines = emptyList(), lineNumbers = emptyList(), lineTexts = emptyList(),
+                loadedBytes = 0L, hasMore = false,
                 content = "", original = "", archiveItems = emptyList(), sqliteTables = emptyList(),
-                previewFile = null, pdfFile = null, previewTitle = "", inArchive = false,
-                isHex = mode == FileViewMode.CONTINUOUS && kind != FileKind.TEXT,
+                previewFile = null, pdfFile = null, videoFile = null, previewTitle = "", inArchive = false,
+                // MT treats large text-ish files (including self-extracting scripts and
+                // ELF payloads) as text in the unified editor. Hex is opt-in only.
+                isHex = false,
             )
         }
         when (mode) {
@@ -133,7 +151,11 @@ class TextEditorViewModel : ViewModel() {
                         // Even a small file with one enormous line freezes Compose text
                         // measurement. Fall back to the chunked viewer in that case.
                         if (text.lineSequence().any { it.length > MAX_WRAP_CHARS * 4 }) {
-                            _state.update { it.copy(mode = FileViewMode.CONTINUOUS, lines = emptyList(), loadedBytes = 0L) }
+                            logicalLine = 1
+                            _state.update {
+                                it.copy(mode = FileViewMode.CONTINUOUS, lines = emptyList(),
+                                    lineNumbers = emptyList(), lineTexts = emptyList(), loadedBytes = 0L)
+                            }
                             readChunk(path, kind, size, reset = true)
                         } else {
                             _state.update { it.copy(content = text, original = text, loading = false) }
@@ -157,6 +179,14 @@ class TextEditorViewModel : ViewModel() {
                 )
             }
             FileViewMode.IMAGE -> _state.update { it.copy(loading = false) }
+            FileViewMode.VIDEO -> {
+                val result = runCatching { FileViewerRepository.copyToCache(path, ksuApp.cacheDir, "video",
+                    extension = path.substringAfterLast('.', "mp4").takeIf { it.length <= 5 } ?: "mp4") }
+                result.fold(
+                    onSuccess = { file -> _state.update { it.copy(videoFile = file, loading = false) } },
+                    onFailure = { error -> fail(path, size, error) },
+                )
+            }
             FileViewMode.SQLITE -> {
                 val result = runCatching { FileViewerRepository.sqlitePreview(path, ksuApp.cacheDir) }
                 result.fold(
@@ -178,7 +208,8 @@ class TextEditorViewModel : ViewModel() {
     fun loadMore() = viewModelScope.launch(Dispatchers.IO) {
         val current = _state.value
         if (current.mode != FileViewMode.CONTINUOUS || loadingMore || !current.hasMore) return@launch
-        readChunk(current.path, current.kind, current.fileSize, reset = false)
+        readChunk(current.path, if (forceHex) FileKind.BINARY else FileKind.TEXT,
+            current.fileSize, reset = false)
     }
 
     private suspend fun readChunk(path: String, kind: FileKind, size: Long, reset: Boolean) {
@@ -189,26 +220,58 @@ class TextEditorViewModel : ViewModel() {
         }
         result.fold(
             onSuccess = { page ->
-                val isHex = kind != FileKind.TEXT
-                val newLines = if (isHex) {
-                    page.hexDump().lineSequence().toList()
+                val isHex = forceHex
+                val language = SourceSyntax.langFor(path)
+                // Build the final styled rows here on IO. Building AnnotatedString in
+                // composition made fast scrolling through XML-heavy directories janky.
+                fun row(text: String, number: Int): Triple<String, Int, AnnotatedString> {
+                    val styled = buildAnnotatedString {
+                        append(text)
+                        if (!isHex && language != SourceSyntax.Lang.PLAIN) {
+                            SourceSyntax.tokenize(text, language).forEach { token ->
+                                if (token.start < token.end && token.end <= text.length) {
+                                    addStyle(
+                                        SpanStyle(color = Color(SourceSyntax.color(token.kind))),
+                                        token.start,
+                                        token.end,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    return Triple(text, number, styled)
+                }
+                // Each wrapped row keeps its logical line number. MT shows a long line on
+                // several visual rows but never counts those rows as extra lines.
+                val newRows: List<Triple<String, Int, AnnotatedString>> = if (isHex) {
+                    page.hexDump().lineSequence().map { row(it, 0) }.toList()
                 } else {
                     val combined = pendingLine + page.text
                     val parts = combined.split('\n')
                     // Keep only a bounded tail as pending: a huge single line must never
                     // accumulate without limit while more chunks are appended.
                     pendingLine = parts.lastOrNull().orEmpty().takeLast(MAX_WRAP_CHARS)
-                    parts.dropLast(1).flatMap { wrapLongLine(it) }
+                    parts.dropLast(1).flatMap { line ->
+                        val number = logicalLine++
+                        wrapLongLine(line).map { row(it, number) }
+                    }
                 }
                 val reachedEnd = start + page.bytes.size >= size
-                val tail = if (!isHex && reachedEnd && pendingLine.isNotEmpty()) {
-                    wrapLongLine(pendingLine).also { pendingLine = "" }
-                } else emptyList()
+                val tailRows: List<Triple<String, Int, AnnotatedString>> =
+                    if (!isHex && reachedEnd && pendingLine.isNotEmpty()) {
+                        val number = logicalLine++
+                        wrapLongLine(pendingLine).map { row(it, number) }.also { pendingLine = "" }
+                    } else emptyList()
+                val rows = newRows + tailRows
                 _state.update { state ->
                     state.copy(
                         loading = false,
                         isHex = isHex,
-                        lines = if (reset) newLines + tail else state.lines + newLines + tail,
+                        lines = if (reset) rows.map { it.first } else state.lines + rows.map { it.first },
+                        lineNumbers = if (reset) rows.map { it.second }
+                            else state.lineNumbers + rows.map { it.second },
+                        lineTexts = if (reset) rows.map { it.third }
+                            else state.lineTexts + rows.map { it.third },
                         loadedBytes = start + page.bytes.size,
                         hasMore = !reachedEnd && page.bytes.isNotEmpty(),
                         message = null,
@@ -311,22 +374,27 @@ class TextEditorViewModel : ViewModel() {
         val mode = when (choice) {
             "archive" -> FileViewMode.ARCHIVE
             "image" -> FileViewMode.IMAGE
+            "video" -> FileViewMode.VIDEO
             "hex" -> FileViewMode.CONTINUOUS
             else -> if (size <= MAX_EDIT_BYTES) FileViewMode.EDIT else FileViewMode.CONTINUOUS
         }
         pendingLine = ""
         loadingMore = false
+        forceHex = choice == "hex"
+        logicalLine = 1
         _state.update {
             it.copy(
                 path = path, mode = mode, fileSize = size, loading = true, message = null,
-                lines = emptyList(), loadedBytes = 0L, hasMore = false,
-                isHex = mode == FileViewMode.CONTINUOUS && choice == "hex",
+                lines = emptyList(), lineNumbers = emptyList(), lineTexts = emptyList(),
+                loadedBytes = 0L, hasMore = false,
+                isHex = forceHex,
                 archiveItems = emptyList(), archiveDir = "", content = "", original = "",
-                previewFile = null, inArchive = false,
+                previewFile = null, videoFile = null, inArchive = false,
             )
         }
         when (mode) {
-            FileViewMode.CONTINUOUS -> readChunk(path, FileKind.BINARY, size, reset = true)
+            FileViewMode.CONTINUOUS -> readChunk(path,
+                if (forceHex) FileKind.BINARY else FileKind.TEXT, size, reset = true)
             FileViewMode.ARCHIVE -> {
                 archiveEntriesPath = path
                 val result = runCatching { FileViewerRepository.listArchive(path, ksuApp.cacheDir) }
@@ -346,6 +414,14 @@ class TextEditorViewModel : ViewModel() {
                 )
             }
             FileViewMode.IMAGE -> _state.update { it.copy(loading = false) }
+            FileViewMode.VIDEO -> {
+                val result = runCatching { FileViewerRepository.copyToCache(path, ksuApp.cacheDir, "video",
+                    extension = path.substringAfterLast('.', "mp4").takeIf { it.length <= 5 } ?: "mp4") }
+                result.fold(
+                    onSuccess = { file -> _state.update { it.copy(videoFile = file, loading = false) } },
+                    onFailure = { error -> fail(path, size, error) },
+                )
+            }
             else -> _state.update { it.copy(loading = false) }
         }
     }

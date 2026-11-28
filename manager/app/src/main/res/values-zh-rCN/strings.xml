@@ -178,6 +178,11 @@
     <string name="settings_usb_debugging">USB 调试</string>
     <string name="settings_usb_debugging_summary">快捷开启或关闭系统 USB 调试，默认关闭</string>
     <string name="settings_usb_debugging_failed">切换 USB 调试状态失败</string>
+    <string name="settings_file_manager">文件管理</string>
+    <string name="settings_file_manager_summary">显示文件管理页，并允许其他应用打开或选择文件，默认关闭</string>
+    <string name="settings_terminal">终端</string>
+    <string name="settings_terminal_summary">显示内置终端页，默认关闭</string>
+    <string name="feature_disabled_hint">该功能已在设置中关闭</string>
     <string name="direct_install">直接安装（推荐）</string>
     <string name="select_file">选择文件并修补</string>
     <string name="download_file">下载文件并修补</string>

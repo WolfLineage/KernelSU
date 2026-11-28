@@ -147,10 +147,12 @@ fun FileManagerScreen(
             // from the editor's top menu instead.
             val openAs = when (FileManagerRepository.sniff(target)) {
                 FileKind.IMAGE -> "image"
+                FileKind.VIDEO -> "video"
                 FileKind.SQLITE -> "sqlite"
                 FileKind.PDF -> "pdf"
                 FileKind.ARCHIVE -> "archive"
-                FileKind.ELF, FileKind.DEX, FileKind.BINARY -> "hex"
+                // MT opens large text-ish files (self-extracting scripts, ELF payloads)
+                // in the unified text editor. Hex is opt-in from "打开方式" only.
                 else -> "text"
             }
             navigator.push(Route.TextEditor(target, openAs))
@@ -200,6 +202,9 @@ fun FileManagerScreen(
         onShowBookmarks = viewModel::showBookmarks,
         onHideBookmarks = viewModel::hideBookmarks,
         onNavigateBookmark = { path -> viewModel.navigate(state.activePane, resolve(path)) },
+        onUpdateBookmark = viewModel::updateBookmark,
+        onMoveBookmark = viewModel::moveBookmark,
+        onRemoveBookmark = viewModel::removeBookmark,
     )
 
     when (uiMode) {

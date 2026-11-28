@@ -162,11 +162,11 @@ $(warning -- KernelSU: Git not detected, make sure git is installed in your PATH
 endif
 
 
-# Fixed semantic version 34307 (v3.4.3), matching the manager APK versionCode.
+# Fixed semantic version 35000 (v3.5.0), matching the manager APK versionCode.
 # The old formula (30000 + git commit count) drifted with every commit and made the
 # kernel LKM version disagree with the manager's displayed version. Keep this value
 # in sync with manager/build.gradle.kts getVersionCode().
-$(eval KSU_VERSION=34307)
+$(eval KSU_VERSION=35000)
 $(info -- KernelSU version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 

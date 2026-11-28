@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
@@ -120,6 +121,28 @@ private const val LIGHT_REF_X = 0.5f
 private const val LIGHT_REF_Y = 0.7f
 private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f // |g_xy| > 0.1, ≈ 6° tilt
 private const val GRAVITY_ANGLE_STEP_RAD = (3.0 * PI / 180.0).toFloat()
+
+// Baseline proportions measured in the reference state: file manager + terminal both
+// enabled (six destinations). The pill is 80x77dp inside a 56dp shell with 4dp insets,
+// drawn at 0.625 scale while idle. The shell width is fixed by the parent, so one
+// reference tab is 1/6 of its content width: pill width / reference tab width = 80dp.
+// Keeping that ratio means the pill (both idle and pressed) grows with each tab that
+// disappears instead of staying at a hard-coded width.
+private const val CAPSULE_REFERENCE_TABS_COUNT = 6
+private const val CAPSULE_BAR_HEIGHT_DP = 56f
+private const val CAPSULE_BAR_PADDING_DP = 4f
+private const val CAPSULE_REFERENCE_PILL_WIDTH_DP = 80f
+private const val CAPSULE_REFERENCE_PILL_HEIGHT_DP = 77f
+private const val CAPSULE_REFERENCE_IDLE_SCALE = 0.625f
+
+private data class CapsuleStyle(
+    val barHeight: Dp,
+    val barPadding: Dp,
+    val pillWidth: Dp,
+    val pillHeight: Dp,
+    val pillHalfWidthPx: Float,
+    val idleScale: Float,
+)
 
 /** Tracks gravity for a `dualPeak` highlight's primary light, with an extra UV-clockwise offset on top. */
 @Composable
@@ -222,6 +245,27 @@ fun FloatingBottomBar(
     val containerColor = if (isBlurEnabled) surfaceContainer.copy(0.4f) else surfaceContainer
 
     val density = LocalDensity.current
+    // Recomputed on every capsule rebuild (tab count / density change). The shell
+    // width does not change: one reference tab is 1/6 of its content width, so the
+    // recorded pill/tab ratio makes the pill width scale as 6 / tabsCount. Both the
+    // idle pill and the pressed pill use this width, so a long press changes width
+    // only through the same ratio-driven geometry instead of a fixed 80dp layout.
+    val capsuleStyle = remember(tabsCount, density) {
+        val barHeight = CAPSULE_BAR_HEIGHT_DP.dp
+        val barPadding = CAPSULE_BAR_PADDING_DP.dp
+        val pillHeight = barHeight * (CAPSULE_REFERENCE_PILL_HEIGHT_DP / CAPSULE_BAR_HEIGHT_DP)
+        val pillWidth = barHeight *
+            (CAPSULE_REFERENCE_PILL_WIDTH_DP / CAPSULE_BAR_HEIGHT_DP) *
+            (CAPSULE_REFERENCE_TABS_COUNT.toFloat() / tabsCount.coerceAtLeast(1))
+        CapsuleStyle(
+            barHeight = barHeight,
+            barPadding = barPadding,
+            pillWidth = pillWidth,
+            pillHeight = pillHeight,
+            pillHalfWidthPx = with(density) { (pillWidth / 2).toPx() },
+            idleScale = CAPSULE_REFERENCE_IDLE_SCALE,
+        )
+    }
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val tabsBackdrop = rememberLayerBackdrop()
     val animationScope = rememberCoroutineScope()
@@ -242,12 +286,13 @@ fun FloatingBottomBar(
         }
     }
 
-    var currentIndex by remember { mutableIntStateOf(selectedIndex) }
+    // Both states describe tab indices, so they must be rebuilt with the tab strip.
+    var currentIndex by remember(tabsCount) { mutableIntStateOf(selectedIndex) }
     val onSelectedUpdated by rememberUpdatedState(onSelected)
 
     fun indexAt(positionX: Float): Int {
         if (tabWidthPx == 0f) return currentIndex
-        val horizontalPaddingPx = with(density) { 4.dp.toPx() }
+        val horizontalPaddingPx = with(density) { capsuleStyle.barPadding.toPx() }
         val logicalX = if (isLtr) positionX else totalWidthPx - positionX
         return ((logicalX - horizontalPaddingPx) / tabWidthPx)
             .toInt()
@@ -257,7 +302,7 @@ fun FloatingBottomBar(
     // Direction lock for the capsule drag: without it a vertical swipe that merely
     // PASSES OVER the capsule (common when flinging a list) drag-scrolled the pill
     // and switched tabs, leaving dialogs stranded above the wrong page.
-    val capsuleDragLock = remember {
+    val capsuleDragLock = remember(tabsCount) {
         object {
             var decided = false
             var vertical = false
@@ -275,11 +320,11 @@ fun FloatingBottomBar(
             initialValue = selectedIndex.toFloat(),
             valueRange = 0f..(tabsCount - 1).toFloat(),
             visibilityThreshold = 0.001f,
-            // Idle shrinks the 80x77dp layout to a 50x48dp visual (landscape,
-            // h/w = 0.96, fully inside the 56dp shell); pressed = 1.0 renders the
-            // pill at its exact layout size, so the 8dp innerShadow ring hugs the
-            // glass edge and the top/bottom dip bands stay visible at full press.
-            initialScale = 0.625f,
+            // At six tabs this shrinks the 80x77dp pill to 50x48dp (fully inside
+            // the 56dp shell); pressed = 1.0 renders it at its exact layout size.
+            // The layout width itself is ratio-driven, so both idle and pressed
+            // widths grow proportionally when tabs are hidden.
+            initialScale = capsuleStyle.idleScale,
             pressedScale = 1f,
             canDrag = { offset ->
                 offset.x in 0f..totalWidthPx
@@ -398,7 +443,7 @@ fun FloatingBottomBar(
             Modifier
                 .onGloballyPositioned { coords ->
                     totalWidthPx = coords.size.width.toFloat()
-                    val contentWidthPx = totalWidthPx - with(density) { 8.dp.toPx() }
+                    val contentWidthPx = totalWidthPx - with(density) { (capsuleStyle.barPadding * 2).toPx() }
                     tabWidthPx = (contentWidthPx / tabsCount).coerceAtLeast(0f)
                 }
                 .selectableGroup()
@@ -445,8 +490,8 @@ fun FloatingBottomBar(
                     } else Modifier
                 )
                 .then(dampedDragAnimation.modifier)
-                .height(56.dp)
-                .padding(4.dp),
+                .height(capsuleStyle.barHeight)
+                .padding(capsuleStyle.barPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CompositionLocalProvider(LocalContentColor provides tabContentColor) {
@@ -481,8 +526,8 @@ fun FloatingBottomBar(
                             onDrawSurface = { drawRect(containerColor) },
                         )
                         .then(interactiveHighlight.modifier)
-                        .height(56.dp)
-                        .padding(horizontal = 4.dp),
+                        .height(capsuleStyle.barHeight)
+                        .padding(horizontal = capsuleStyle.barPadding),
                     verticalAlignment = Alignment.CenterVertically,
                     content = { content(::activateTab) }
                 )
@@ -496,9 +541,10 @@ fun FloatingBottomBar(
                     Modifier
                         .graphicsLayer {
                             val progressOffset = dampedDragAnimation.value * tabWidthPx
-                            // Center the 80dp-wide pill on the active tab: tab centers
-                            // sit at 4dp + (i + 0.5) * tabWidth.
-                            val centerOffset = 4.dp.toPx() + tabWidthPx / 2f - 40.dp.toPx()
+                            // Center the ratio-derived pill on the active tab: tab
+                            // centers sit at padding + (i + 0.5) * tabWidth.
+                            val centerOffset = with(density) { capsuleStyle.barPadding.toPx() } +
+                                tabWidthPx / 2f - capsuleStyle.pillHalfWidthPx
                             translationX = if (isLtr) {
                                 progressOffset + panelOffset + centerOffset
                             } else {
@@ -545,19 +591,20 @@ fun FloatingBottomBar(
                                 alpha = dampedDragAnimation.pressProgress,
                             )
                         }
-                        // Idle pill: 48dp tall x 50dp wide (landscape, h/w = 0.96,
-                        // fully inside the 56dp shell). Press scales it uniformly
-                        // 1.604x -> 80x77dp: vertical overflow 10.5dp per side hosts
-                        // the inner-shadow dip band; the shape ratio stays constant.
-                        .height(77.dp)
-                        .width(80.dp)
+                        // Idle pill: the ratio-derived width at idleScale (50dp wide
+                        // in the six-tab reference), fully inside the shell. Press
+                        // scales it uniformly to the exact layout width, so the
+                        // inner-shadow dip band keeps the same corner proportions.
+                        .height(capsuleStyle.pillHeight)
+                        .width(capsuleStyle.pillWidth)
                 )
             } else {
                 Box(
                     Modifier
                         .graphicsLayer {
                             val progressOffset = dampedDragAnimation.value * tabWidthPx
-                            val centerOffset = 4.dp.toPx() + tabWidthPx / 2f - 40.dp.toPx()
+                            val centerOffset = with(density) { capsuleStyle.barPadding.toPx() } +
+                                tabWidthPx / 2f - capsuleStyle.pillHalfWidthPx
                             translationX = if (isLtr) {
                                 progressOffset + panelOffset + centerOffset
                             } else {
@@ -566,8 +613,8 @@ fun FloatingBottomBar(
                         }
                         .clip(pillShape)
                         .background(accentColor.copy(alpha = 0.15f), pillShape)
-                        .height(77.dp)
-                        .width(80.dp),
+                        .height(capsuleStyle.pillHeight)
+                        .width(capsuleStyle.pillWidth),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     CompositionLocalProvider(LocalContentColor provides accentColor) {
@@ -575,8 +622,12 @@ fun FloatingBottomBar(
                             Modifier
                                 .clearAndSetSemantics {}
                                 .wrapContentWidth(align = Alignment.Start, unbounded = true)
-                                .requiredWidth(with(density) { (totalWidthPx - 8.dp.toPx()).toDp() })
-                                .height(56.dp)
+                                .requiredWidth(
+                                    with(density) {
+                                        (totalWidthPx - (capsuleStyle.barPadding * 2).toPx()).toDp()
+                                    }
+                                )
+                                .height(capsuleStyle.barHeight)
                                 .graphicsLayer {
                                     val progressOffset = dampedDragAnimation.value * tabWidthPx
                                     translationX = if (isLtr) -progressOffset else progressOffset

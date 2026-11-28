@@ -154,6 +154,30 @@ fun SettingPagerMaterial(
                 }
             )
 
+            SegmentedColumn(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 13.dp),
+                content = listOf(
+                    {
+                        SegmentedSwitchItem(
+                            icon = Icons.Filled.Folder,
+                            title = stringResource(id = R.string.settings_file_manager),
+                            summary = stringResource(id = R.string.settings_file_manager_summary),
+                            checked = uiState.enableFileManager,
+                            onCheckedChange = actions.onSetEnableFileManager
+                        )
+                    },
+                    {
+                        SegmentedSwitchItem(
+                            icon = Icons.Filled.Terminal,
+                            title = stringResource(id = R.string.settings_terminal),
+                            summary = stringResource(id = R.string.settings_terminal_summary),
+                            checked = uiState.enableTerminal,
+                            onCheckedChange = actions.onSetEnableTerminal
+                        )
+                    }
+                )
+            )
+
             val profileTemplate = stringResource(id = R.string.settings_profile_template)
             KsuIsValid {
                 SegmentedColumn(

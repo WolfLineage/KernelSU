@@ -187,8 +187,14 @@ object FileViewerRepository {
     }
 
     /** Random-access consumers (SQLite, PdfRenderer) need a local copy. */
-    fun copyToCache(path: String, cacheDir: File, prefix: String, maxBytes: Long = 256L * 1024 * 1024): File {
-        val work = File(cacheDir, "fm-$prefix/${UUID.randomUUID()}.$prefix")
+    fun copyToCache(
+        path: String,
+        cacheDir: File,
+        prefix: String,
+        maxBytes: Long = 256L * 1024 * 1024,
+        extension: String = prefix,
+    ): File {
+        val work = File(cacheDir, "fm-$prefix/${UUID.randomUUID()}.$extension")
         work.parentFile?.mkdirs()
         FileManagerRepository.openStream(path).use { input ->
             work.outputStream().use { output -> copyBounded(input, output, maxBytes.toInt()) }

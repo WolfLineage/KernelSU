@@ -84,8 +84,10 @@ class InteractiveHighlight(
             drawContent()
         }
 
+    // Same reason as DampedDragAnimation: the highlight is recreated together with
+    // the capsule object, so its pointer input must be keyed on the new instance.
     val gestureModifier: Modifier =
-        Modifier.pointerInput(animationScope) {
+        Modifier.pointerInput(this) {
             inspectDragGestures(
                 onDragStart = { down ->
                     startPosition = down.position

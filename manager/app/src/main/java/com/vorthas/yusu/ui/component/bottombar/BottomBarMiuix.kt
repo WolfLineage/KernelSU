@@ -62,6 +62,8 @@ fun BottomBarMiuix(
     blurBackdrop: LayerBackdrop?,
     backdrop: Backdrop,
     navigationBadge: NavigationBadgeState,
+    enableFileManager: Boolean,
+    enableTerminal: Boolean,
     modifier: Modifier,
 ) {
     val fullFeatured = Natives.isFullFeatured()
@@ -71,10 +73,11 @@ fun BottomBarMiuix(
     val enableFloatingBottomBar = LocalEnableFloatingBottomBar.current
     val enableFloatingBottomBarBlur = LocalEnableFloatingBottomBarBlur.current
 
-    val items = BottomBarDestination.entries.map { destination ->
+    val visible = visibleDestinations(enableFileManager, enableTerminal)
+    val items = visible.map { item ->
         NavigationItem(
-            label = stringResource(destination.label),
-            icon = destination.icon,
+            label = stringResource(item.destination.label),
+            icon = item.destination.icon,
         )
     }
     if (!enableFloatingBottomBar) {
@@ -84,15 +87,16 @@ fun BottomBarMiuix(
                 color = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 content = {
                     items.forEachIndexed { index, item ->
+                        val page = visible[index].page
                         NavigationBarItem(
                             modifier = Modifier.weight(1f),
                             icon = item.icon,
                             label = "",
-                            selected = mainState.selectedPage == index,
+                            selected = mainState.selectedPage == page,
                             onClick = {
-                                mainState.animateToPage(index)
+                                mainState.animateToPage(page)
                             },
-                            badge = navigationBadgeFor(index, navigationBadge),
+                            badge = navigationBadgeFor(page, navigationBadge),
                         )
                     }
                 }
@@ -107,23 +111,22 @@ fun BottomBarMiuix(
                     detectTapGestures { }
                 }
                 .padding(start = 28.dp, end = 28.dp, bottom = bottomPadding),
-            selectedIndex = mainState.selectedPage,
-            onSelected = { mainState.animateToPage(it) },
+            selectedIndex = visible.indexOfFirst { it.page == mainState.selectedPage }.coerceAtLeast(0),
+            onSelected = { index -> mainState.animateToPage(visible[index].page) },
             backdrop = backdrop,
             tabsCount = items.size,
             isBlurEnabled = enableFloatingBottomBarBlur,
         ) { activateTab ->
             items.forEachIndexed { index, item ->
+                val page = visible[index].page
                 FloatingBottomBarItem(
-                    selected = mainState.selectedPage == index,
-                    onClick = {
-                        activateTab(index)
-                    },
+                    selected = mainState.selectedPage == page,
+                    onClick = { activateTab(index) },
                     modifier = Modifier.defaultMinSize(minWidth = 72.dp)
                 ) {
                     // Icon and label take LocalContentColor so the FloatingBottomBar backdrop copy
                     // can recolor them to the accent tone inside the indicator pill.
-                    val badge = navigationBadgeFor(index, navigationBadge, floating = true)
+                    val badge = navigationBadgeFor(page, navigationBadge, floating = true)
                     val icon: @Composable () -> Unit = {
                         Icon(
                             imageVector = item.icon,

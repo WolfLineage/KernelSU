@@ -193,6 +193,11 @@
     <string name="settings_usb_debugging">USB debugging</string>
     <string name="settings_usb_debugging_summary">Quickly turn system USB debugging on or off. Off by default.</string>
     <string name="settings_usb_debugging_failed">Failed to change USB debugging state</string>
+    <string name="settings_file_manager">File manager</string>
+    <string name="settings_file_manager_summary">Show the file manager tab and accept file open/select requests from other apps. Off by default.</string>
+    <string name="settings_terminal">Terminal</string>
+    <string name="settings_terminal_summary">Show the built-in terminal tab. Off by default.</string>
+    <string name="feature_disabled_hint">This feature is turned off in settings.</string>
     <string name="direct_install">Direct install (Recommended)</string>
     <string name="select_file">Select a file and patch</string>
     <string name="download_file">Download a file and patch</string>

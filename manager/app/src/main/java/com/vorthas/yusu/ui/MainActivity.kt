@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.systemBars
@@ -26,6 +27,7 @@ import androidx.compose.foundation.pager.PagerDefaults.flingBehavior
 import androidx.compose.foundation.pager.PagerDefaults.pageNestedScrollConnection
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +48,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -144,7 +147,9 @@ class MainActivity : ComponentActivity() {
         // Opening a file from another app should land immediately, not wait out the splash.
         if (intent?.action == Intent.ACTION_VIEW ||
             intent?.action == Intent.ACTION_INSTALL_PACKAGE ||
-            intent?.action == Intent.ACTION_GET_CONTENT
+            intent?.action == Intent.ACTION_GET_CONTENT ||
+            intent?.action == Intent.ACTION_OPEN_DOCUMENT ||
+            intent?.action == Intent.ACTION_PICK
         ) {
             splashAnimationDurationMs = 0L
         }
@@ -260,7 +265,9 @@ class MainActivity : ComponentActivity() {
                 LocalUiMode provides uiMode,
             ) {
                 KernelSUTheme(appSettings = appSettings, uiMode = uiMode) {
-                    com.vorthas.yusu.ui.component.AllFilesAccessGate()
+                    if (uiState.enableFileManager) {
+                        com.vorthas.yusu.ui.component.AllFilesAccessGate()
+                    }
                     IntentDispatcher(intentChannel = intentChannel)
                     val swipeDismiss = if (uiState.enableSwipeDismiss) {
                         if (LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) {
@@ -283,6 +290,8 @@ class MainActivity : ComponentActivity() {
                             initialPage = selectedMainPage,
                             pagerInterceptionMode = uiState.pagerInterceptionMode,
                             onPageChanged = viewModel::setSelectedMainPage,
+                            enableFileManager = uiState.enableFileManager,
+                            enableTerminal = uiState.enableTerminal,
                         )
                     }
 
@@ -337,10 +346,22 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             entry<Route.FileManager>(swipeDismiss = swipeDismiss) { key ->
-                                FileManagerScreen(initialPath = key.initialPath, requestId = key.requestId)
+                                if (uiState.enableFileManager) {
+                                    FileManagerScreen(initialPath = key.initialPath, requestId = key.requestId)
+                                } else {
+                                    DisabledFeaturePage()
+                                }
                             }
-                            entry<Route.Terminal>(swipeDismiss = swipeDismiss) { key -> TerminalPage(key.path) }
-                            entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key -> TextEditorPage(key.path, key.openAs, key.displayName) }
+                            entry<Route.Terminal>(swipeDismiss = swipeDismiss) { key ->
+                                if (uiState.enableTerminal) TerminalPage(key.path) else DisabledFeaturePage()
+                            }
+                            entry<Route.TextEditor>(swipeDismiss = swipeDismiss) { key ->
+                                if (uiState.enableFileManager) {
+                                    TextEditorPage(key.path, key.openAs, key.displayName)
+                                } else {
+                                    DisabledFeaturePage()
+                                }
+                            }
                             entry<Route.Home>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.SuperUser>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
                             entry<Route.Module>(swipeDismiss = swipeDismiss) { mainScreenEntry() }
@@ -384,8 +405,11 @@ fun MainScreen(
     initialPage: Int = 0,
     pagerInterceptionMode: Int = PagerInterceptionMode.CrossAxisInterceptor.ordinal,
     onPageChanged: (Int) -> Unit = {},
+    enableFileManager: Boolean = true,
+    enableTerminal: Boolean = true,
 ) {
     val navController = LocalNavigator.current
+    val context = LocalContext.current
     val enableBlur = LocalEnableBlur.current
     val enableFloatingBottomBar = LocalEnableFloatingBottomBar.current
     val enableFloatingBottomBarBlur = LocalEnableFloatingBottomBarBlur.current
@@ -402,8 +426,8 @@ fun MainScreen(
     val revealSeq by revealActivityVm.revealRequestSeq.collectAsStateWithLifecycle()
     val pickMode by revealActivityVm.pickMode.collectAsStateWithLifecycle()
     val onPick = LocalPickResult.current
-    LaunchedEffect(revealSeq) {
-        if (revealSeq > 0) {
+    LaunchedEffect(revealSeq, enableFileManager) {
+        if (revealSeq > 0 && enableFileManager) {
             // Snap instead of spring-animating: on cold external opens the animated
             // transition gets cancelled by recomposition and leaves the pager on page 0.
             mainPagerState.snapToPage(com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE)
@@ -489,7 +513,13 @@ fun MainScreen(
     LaunchedEffect(currentPage) {
         mainPagerState.syncPage()
     }
-
+    LaunchedEffect(Unit) {
+        com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.executionClosed.collect {
+            mainPagerState.animateToPage(
+                com.vorthas.yusu.ui.viewmodel.MainActivityViewModel.FILE_MANAGER_PAGE,
+            )
+        }
+    }
     MainScreenBackHandler(mainPagerState, navController)
 
     CompositionLocalProvider(
@@ -528,20 +558,40 @@ fun MainScreen(
                         0 -> if (contentReady || isCurrentPage) HomePager(navController, bottomInnerPadding, isCurrentPage)
                         1 -> if (contentReady || isCurrentPage) SuperUserPager(navController, bottomInnerPadding, isCurrentPage)
                         2 -> if (contentReady || isCurrentPage) ModulePager(bottomInnerPadding, isCurrentPage)
-                        3 -> if (contentReady || isCurrentPage) FileManagerScreen(
-                            bottomPadding = bottomInnerPadding,
-                            usePendingReveal = true,
-                            pickMode = pickMode,
-                            onPick = onPick,
-                            onRunScript = { command ->
-                                mainPagerState.animateToPage(4)
-                                com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)
-                            },
-                        )
-                        4 -> if (contentReady || isCurrentPage) TerminalPage(
-                            bottomPadding = bottomInnerPadding,
-                            isVisible = isCurrentPage,
-                        )
+                        3 -> if (contentReady || isCurrentPage) {
+                            if (enableFileManager) {
+                                FileManagerScreen(
+                                    bottomPadding = bottomInnerPadding,
+                                    usePendingReveal = true,
+                                    pickMode = pickMode,
+                                    onPick = onPick,
+                                    onRunScript = { command ->
+                                        if (enableTerminal) {
+                                            mainPagerState.animateToPage(4)
+                                            com.vorthas.yusu.ui.screen.terminal.TerminalCommandBus.send(command)
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                R.string.feature_disabled_hint,
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    },
+                                )
+                            } else {
+                                DisabledFeaturePage()
+                            }
+                        }
+                        4 -> if (contentReady || isCurrentPage) {
+                            if (enableTerminal) {
+                                TerminalPage(
+                                    bottomPadding = bottomInnerPadding,
+                                    isVisible = isCurrentPage,
+                                )
+                            } else {
+                                DisabledFeaturePage()
+                            }
+                        }
                         5 -> if (contentReady || isCurrentPage) SettingPager(navController, bottomInnerPadding, isCurrentPage)
                     }
                 }
@@ -561,7 +611,7 @@ fun MainScreen(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
                 ) {
                     Row {
-                        SideRail(navigationBadge)
+                        SideRail(navigationBadge, enableFileManager, enableTerminal)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -574,7 +624,7 @@ fun MainScreen(
 
                 UiMode.Miuix -> Scaffold { _ ->
                     Row {
-                        SideRail(navigationBadge)
+                        SideRail(navigationBadge, enableFileManager, enableTerminal)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -595,6 +645,8 @@ fun MainScreen(
                         blurBackdrop = blurBackdrop,
                         backdrop = backdrop,
                         navigationBadge = navigationBadge,
+                        enableFileManager = enableFileManager,
+                        enableTerminal = enableTerminal,
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
@@ -616,6 +668,16 @@ fun MainScreen(
     }
 }
 
+
+@Composable
+private fun DisabledFeaturePage() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(stringResource(R.string.feature_disabled_hint))
+    }
+}
 
 @Composable
 private fun MainScreenBackHandler(
