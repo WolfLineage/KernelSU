@@ -21,6 +21,9 @@ import java.io.File
 /** Minimum time the refresh indicator stays visible so its animation can play. */
 private const val MIN_LOADING_MS = 320L
 
+/** Minimum time the extraction overlay stays visible so the operation is unmistakable. */
+private const val EXTRACT_MIN_VISIBLE_MS = 700L
+
 class FileManagerViewModel : ViewModel() {
     private val _state = MutableStateFlow(FileManagerUiState())
     val state: StateFlow<FileManagerUiState> = _state.asStateFlow()
@@ -408,29 +411,77 @@ class FileManagerViewModel : ViewModel() {
         refresh(pane)
     }
 
+    /** Set by the dialog's Cancel button; checked between archive entries. */
+    private val extractCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Request cooperative cancellation; the current entry is rolled back by the repository. */
+    fun cancelExtract() {
+        extractCancelled.set(true)
+        _state.update { it.copy(operation = null) }
+        message(ksuApp.getString(com.vorthas.yusu.R.string.fm_extract_cancelled))
+    }
+
     fun extract() = viewModelScope.launch(Dispatchers.IO) {
+        extractCancelled.set(false)
         val state = _state.value
         val pane = state.activePane
-        val dir = state.panes.getOrNull(1 - pane)?.path ?: state.panes.getOrNull(pane)?.path ?: return@launch
+        val target = 1 - pane
+        val dir = state.panes.getOrNull(target)?.path ?: state.panes.getOrNull(pane)?.path ?: return@launch
         val suffixes = listOf("zip", "jar", "apk", "apks", "war", "tar", "gz", "tgz", "bz2", "xz", "7z", "rar")
         val archives = state.panes.getOrNull(pane)?.selected.orEmpty()
             .filter { path -> suffixes.any { path.lowercase().endsWith(".$it") } }
             .toList()
         if (archives.isEmpty()) {
-            message("No archive selected")
+            message(ksuApp.getString(com.vorthas.yusu.R.string.fm_extract_no_selection))
             return@launch
+        }
+
+        // Visible progress from the first frame: the operation overlay stays up for at
+        // least EXTRACT_MIN_VISIBLE_MS so even a tiny archive gives unambiguous feedback.
+        val startedAt = System.currentTimeMillis()
+        _state.update {
+            it.copy(operation = FileOperation(
+                label = ksuApp.getString(com.vorthas.yusu.R.string.fm_extracting, archives.size),
+                current = 0, total = archives.size,
+            ))
         }
         var files = 0
         var failed = 0
-        for (archive in archives) {
-            val result = runCatching { FileManagerRepository.extract(archive, dir) }
+        for (index in archives.indices) {
+            val archive = archives[index]
+            _state.update {
+                it.copy(operation = FileOperation(
+                    label = ksuApp.getString(
+                        com.vorthas.yusu.R.string.fm_extracting_item,
+                        index + 1, archives.size, archive.substringAfterLast('/'),
+                    ),
+                    current = index + 1, total = archives.size,
+                ))
+            }
+            val result = runCatching {
+                FileManagerRepository.extract(archive, dir) { extractCancelled.get() }
+            }
                 .onFailure { FileManagerRepository.logFailure("extract $archive", it) }
                 .getOrNull()
             if (result == null) failed++ else files += result.files
+            if (extractCancelled.get()) break
         }
-        message("Extracted $files file(s)" + if (failed > 0) ", $failed failed" else "")
+        if (extractCancelled.get()) return@launch
+        val elapsed = System.currentTimeMillis() - startedAt
+        if (elapsed < EXTRACT_MIN_VISIBLE_MS) delay(EXTRACT_MIN_VISIBLE_MS - elapsed)
+        _state.update { it.copy(operation = null) }
+
+        val summary = ksuApp.getString(
+            com.vorthas.yusu.R.string.fm_extract_complete, files, dir,
+        ) + if (failed > 0) {
+            " " + ksuApp.getString(com.vorthas.yusu.R.string.fm_extract_failed_count, failed)
+        } else ""
+        message(summary)
         clearSelection(pane)
+        // Files land in the OPPOSITE pane, so that pane must be refreshed too. Without
+        // this the listing stays stale and users think the extraction did nothing.
         refresh(pane)
+        refresh(target)
     }
 
     fun newFolder(pane: Int, name: String) = viewModelScope.launch(Dispatchers.IO) {

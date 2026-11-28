@@ -8,7 +8,8 @@ USER_SCRIPTS_DIR="$PERSISTENT_DIR/scripts"
 POSTFS_SCRIPTS_FILE="$PERSISTENT_DIR/scripts_postfs.txt"
 BOOTCOMPLETED_SCRIPTS_FILE="$PERSISTENT_DIR/scripts_bootcompleted.txt"
 SUSFS_BIN=/data/adb/ksu/bin/ksu_susfs
-SUSFS_MIN_VERSION="v2.2.0"
+# Exported for hook scripts that source this CLI; not referenced inside this file.
+export SUSFS_MIN_VERSION="v2.2.0"
 ENGINE_VERSION="native-10"
 
 . "$NATIVE_DIR/core/utils.sh"
@@ -261,6 +262,7 @@ run() {
 action() { run; }
 
 show_status() {
+	susfs_version=$(susfs show version 2>/dev/null | head -n1)
 	echo "$susfs_version"
 	susfs show variant
 	susfs show enabled_features
@@ -269,6 +271,8 @@ show_status() {
 status_report() {
 	# Refresh the live status line consumed by the manager's status page.
 	# Keep it silent: boot hooks redirect this into last-load.log.
+	# Android mksh supports local; ShellCheck assumes strict POSIX sh here.
+	# shellcheck disable=SC3043
 	local ver variant features stamp
 	ver=$(susfs show version 2>/dev/null | head -n1)
 	variant=$(susfs show variant 2>/dev/null | head -n1)

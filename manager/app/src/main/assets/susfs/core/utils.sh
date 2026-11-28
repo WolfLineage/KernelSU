@@ -109,6 +109,8 @@ get_susfs_guard_lkm() {
 }
 
 load_susfs_lkm() {
+    # Android mksh supports local; ShellCheck assumes strict POSIX sh here.
+    # shellcheck disable=SC3043
     local lkm_name lkm_file insmod_bin loaded base rel
 
     if check_susfs_support; then

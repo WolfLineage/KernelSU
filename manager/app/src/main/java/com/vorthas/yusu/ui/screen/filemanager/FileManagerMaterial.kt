@@ -9,8 +9,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 
@@ -120,6 +118,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -1030,26 +1029,17 @@ internal fun PaneMaterial(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
             )
         }
-        AnimatedVisibility(
-            visible = pane.loading,
-            enter = fadeIn(tween(150)) + expandVertically(expandFrom = Alignment.Top, animationSpec = tween(150)),
-            exit = fadeOut(tween(150)) + shrinkVertically(shrinkTowards = Alignment.Top, animationSpec = tween(150)),
-        ) {
-            LinearProgressIndicator(
+        // Loading feedback is drawn INSIDE a Box that overlays the list, so showing or
+        // hiding it never consumes layout space (the old inline bar shifted every row
+        // down by ~4 dp). The list is blurred and covered by a clearly darker scrim so
+        // the busy state is unmistakable, then a centered spinner names the state.
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 1.dp)
-                    .height(2.dp),
-                color = toolPrimaryColor(),
-                trackColor = toolSurfaceColor(),
-            )
-        }
-        // While refreshing, dim the listing and fade it back in when the new
-        // entries arrive — a visible MT-style transition instead of an instant swap.
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-        ) {
+                    .fillMaxSize()
+                    .then(if (pane.loading) Modifier.blur(4.dp) else Modifier),
+            ) {
             if (pane.path != "/") {
                 item(key = "__parent__") {
                     ParentRow(
@@ -1085,6 +1075,37 @@ internal fun PaneMaterial(
                         }
                     },
                     onClearAnchor = { swipeAnchor = -1 },
+                )
+            }
+            }
+
+            // Darker scrim + blurred listing: the busy state is obvious without a
+            // spinner. Drawn on top of the list with matchParentSize so it never
+            // changes the list's measured height.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = pane.loading,
+                enter = fadeIn(tween(120)),
+                exit = fadeOut(tween(180)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.38f)),
+                )
+            }
+            // Indeterminate bar pinned over the top edge — the only refresh indicator.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = pane.loading,
+                enter = fadeIn(tween(120)),
+                exit = fadeOut(tween(180)),
+            ) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = toolPrimaryColor(),
+                    trackColor = Color.Transparent,
                 )
             }
         }

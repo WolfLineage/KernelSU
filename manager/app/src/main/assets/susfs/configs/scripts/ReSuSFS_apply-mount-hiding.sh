@@ -9,7 +9,7 @@ LIST_FILE="/data/adb/ksu/susfs/config/tmp_mount_hiding.txt"
 
 : > "$LIST_FILE"
 
-while IFS=' ' read -r device mount_point fs_type remainder; do
+while IFS=' ' read -r device mount_point _ _; do
 	case "$mount_point" in
 		/data/adb/modules/*)
 			echo "$mount_point" >> "$LIST_FILE"
@@ -17,7 +17,7 @@ while IFS=' ' read -r device mount_point fs_type remainder; do
 	esac
 done < /proc/mounts
 
-while IFS=' ' read -r device mount_point fs_type remainder; do
+while IFS=' ' read -r device mount_point _ _; do
 	case "$device" in
 		/data/adb/modules/*)
 			echo "$mount_point" >> "$LIST_FILE"

@@ -12,6 +12,16 @@ data class FileClipboard(
     val sourcePane: Int,
 )
 
+/**
+ * A long-running file operation shown as a blocking, labelled progress overlay.
+ * [current]/[total] are 1-based when known; [current] = 0 means indeterminate.
+ */
+data class FileOperation(
+    val label: String,
+    val current: Int = 0,
+    val total: Int = 0,
+)
+
 data class PaneUiState(
     val path: String,
     val entries: List<FileEntry> = emptyList(),
@@ -31,6 +41,8 @@ data class FileManagerUiState(
     ),
     val activePane: Int = 0,
     val busy: Boolean = false,
+    /** Non-null while extraction runs; drives the visible "extracting" overlay. */
+    val operation: FileOperation? = null,
     val clipboard: FileClipboard? = null,
     val canBack: List<Boolean> = listOf(false, false),
     val canForward: List<Boolean> = listOf(false, false),
@@ -63,6 +75,7 @@ data class FileManagerActions(
     val onCycleSort: () -> Unit,
     val onDelete: () -> Unit,
     val onExtract: () -> Unit,
+    val onCancelExtract: () -> Unit,
     val onNewFolder: (Int, String) -> Unit,
     val onNewFile: (Int, String) -> Unit,
     val onRename: (String, String) -> Unit,

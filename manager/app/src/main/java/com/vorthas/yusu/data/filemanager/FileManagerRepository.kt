@@ -726,7 +726,11 @@ sealed class InstallResult {
      * components and backslash separators are rejected/normalized so an untrusted archive
      * cannot write outside the target directory.
      */
-    fun extract(archivePath: String, target: String): ExtractResult {
+    fun extract(
+        archivePath: String,
+        target: String,
+        cancelled: () -> Boolean = { false },
+    ): ExtractResult {
         val directory = File(target)
         rootFile(target).mkdirs()
         var count = 0
@@ -736,7 +740,7 @@ sealed class InstallResult {
             ArchiveStreamFactory().createArchiveInputStream(BufferedInputStream(input))
         archive.use { stream ->
             var entry: ArchiveEntry? = stream.nextEntry
-            while (entry != null) {
+            while (entry != null && !cancelled()) {
                 val safeName = sanitizeEntry(entry.name)
                 if (safeName == null) {
                     skipped++
@@ -748,13 +752,16 @@ sealed class InstallResult {
                         output.parentFile?.let { rootFile(it.path).mkdirs() }
                         SuFileOutputStream.open(rootFile(output.path)).use { out ->
                             val buffer = ByteArray(64 * 1024)
-                            while (true) {
+                            while (!cancelled()) {
                                 val read = stream.read(buffer)
                                 if (read <= 0) break
                                 out.write(buffer, 0, read)
                             }
                         }
-                        count++
+                        // A cancelled mid-file write leaves a partial file; remove it so
+                        // the destination never ends up with corrupt data.
+                        if (cancelled()) runCatching { rootFile(output.path).delete() }
+                        else count++
                     }
                 }
                 entry = archive.nextEntry

@@ -2,14 +2,27 @@ package com.vorthas.yusu.ui.screen.filemanager
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vorthas.yusu.data.filemanager.FileKind
@@ -103,7 +116,7 @@ fun FileManagerScreen(
 
     LaunchedEffect(state.message) {
         state.message?.let { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             viewModel.messageShown()
         }
     }
@@ -181,6 +194,7 @@ fun FileManagerScreen(
         onCycleSort = viewModel::cycleSort,
         onDelete = viewModel::delete,
         onExtract = viewModel::extract,
+        onCancelExtract = viewModel::cancelExtract,
         onNewFolder = { pane, name -> viewModel.newFolder(pane, name) },
         onNewFile = { pane, name -> viewModel.newFile(pane, name) },
         onRename = { from, to -> viewModel.rename(from, to) },
@@ -210,5 +224,34 @@ fun FileManagerScreen(
     when (uiMode) {
         UiMode.Miuix -> FileManagerScreenMiuix(state, actions, bottomPadding, onRunScript)
         UiMode.Material -> FileManagerScreenMaterial(state, actions, bottomPadding, onRunScript)
+    }
+
+    // MT-style extraction dialog: a small window with the current file and a bar,
+    // not a full-screen blocking scrim. Cancel cooperatively stops after the current
+    // entry, and the repository removes any partially written file.
+    state.operation?.let { op ->
+        AlertDialog(
+            onDismissRequest = actions.onCancelExtract,
+            title = { Text(stringResource(R.string.fm_extracting_title)) },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(text = op.label, style = MaterialTheme.typography.bodyMedium)
+                    if (op.total > 0) {
+                        LinearProgressIndicator(
+                            progress = { op.current.toFloat() / op.total },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .padding(top = 12.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = actions.onCancelExtract) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 }

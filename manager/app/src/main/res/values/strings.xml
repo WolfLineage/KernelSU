@@ -409,6 +409,13 @@
     <string name="fm_renamed">Renamed</string>
     <string name="fm_invalid_name">Invalid name</string>
     <string name="fm_extracted">Extracted %1$d file(s)</string>
+    <string name="fm_extract_no_selection">Select an archive first (zip/jar/apk/tar/gz/7z/rar)</string>
+    <string name="fm_extracting">Extracting %1$d archive(s)…</string>
+    <string name="fm_extracting_item">Extracting %2$d/%1$d: %3$s</string>
+    <string name="fm_extract_complete">Extracted %1$d file(s) to %2$s — destination refreshed</string>
+    <string name="fm_extract_failed_count">%1$d archive(s) failed</string>
+    <string name="fm_extracting_title">Extracting archive</string>
+    <string name="fm_extract_cancelled">Extraction cancelled</string>
     <string name="fm_items">%1$d items</string>
     <string name="fm_loading">Loading…</string>
     <string name="fm_pane">Pane %1$d</string>
